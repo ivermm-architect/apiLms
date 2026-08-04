@@ -17,7 +17,6 @@ import { GradeOpenAnswerCommand } from '../application/commands/grade-open-answe
 import { GradeStudentCommand } from '../application/commands/grade-student.command';
 import { StartEvaluationCommand } from '../application/commands/start-evaluation.command';
 import { SubmitEvaluationCommand } from '../application/commands/submit-evaluation.command';
-import { DrizzleCertificateRepository } from '../infrastructure/drizzle-certificate.repository';
 import { DrizzleEvaluationRepository } from '../infrastructure/drizzle-evaluation.repository';
 import { DrizzleGradeRepository } from '../infrastructure/drizzle-grade.repository';
 
@@ -28,7 +27,6 @@ import {
   SubmitEvaluationInput,
 } from './dto/assessment.input';
 import {
-  CertificateType,
   EvaluationAttemptType,
   EvaluationQuestionType,
   EvaluationType,
@@ -43,7 +41,6 @@ export class AssessmentResolver {
     private readonly commandBus: CommandBus,
     private readonly grades: DrizzleGradeRepository,
     private readonly evaluations: DrizzleEvaluationRepository,
-    private readonly certificates: DrizzleCertificateRepository,
     private readonly courseOwnership: CourseOwnershipService,
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: DrizzleAuditRepository,
@@ -276,19 +273,5 @@ export class AssessmentResolver {
     await this.courseOwnership.assertOwnership(courseId, user);
     const updated = await this.commandBus.execute(new GradeOpenAnswerCommand(answerId, points));
     return updated as EvaluationAttemptType;
-  }
-
-  // ---------- Certificates ----------
-  @Query(() => [CertificateType])
-  myCertificates(@CurrentUser() user: JwtPayload): Promise<CertificateType[]> {
-    return this.certificates.listByStudent(user.sub) as unknown as Promise<CertificateType[]>;
-  }
-
-  /** Certificado por código (datos crudos). La verificación pública con nombre
-   *  de estudiante/curso la expone `verifyCertificate` del módulo enrollment. */
-  @Query(() => CertificateType, { nullable: true })
-  async certificateByCode(@Args('code') code: string): Promise<CertificateType | null> {
-    const cert = await this.certificates.findByCode(code);
-    return cert as unknown as CertificateType | null;
   }
 }

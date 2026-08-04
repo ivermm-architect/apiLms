@@ -17,7 +17,7 @@ psicométrico (TRI/CAT/BKT) del módulo `assessment`. Se **podó** todo lo ajeno
 | **identity** | Usuarios, roles/RBAC, alta por admin, reset de contraseña por admin |
 | **catalog** | Cursos (CRUD, publicar/despublicar/archivar), secciones, lecciones (texto-primero), **competencias**, mapeo lección→competencia |
 | **enrollment** | Inscripción directa, progreso por lección, estudiantes del curso, **progreso por competencia** |
-| **assessment** | Evaluaciones, banco de ítems, rendir/intentos, calificación manual, certificados, **motor adaptativo (TRI/CAT/BKT)** |
+| **assessment** | Evaluaciones, banco de ítems, rendir/intentos, calificación manual, **motor adaptativo (TRI/CAT/BKT)** |
 | **analytics** | Reporte estudiante/curso, alertas de riesgo, **dominio por competencia** |
 | **admin** | Logs de auditoría, roles, configuración, estado de usuarios/cursos |
 
@@ -38,8 +38,7 @@ psicométrico (TRI/CAT/BKT) del módulo `assessment`. Se **podó** todo lo ajeno
 
 - **Hexagonal**: cada módulo con `domain/` (lógica + ports) e `infrastructure/` (adapters Drizzle).
 - **CQRS**: `@nestjs/cqrs` con `CommandBus`, `QueryBus`, `EventBus`.
-- **EDA acotada**: 2 event handlers cross-module reales:
-  - `assessment/.../issue-certificate.handler.ts` (emite certificado al completar curso).
+- **EDA acotada**: 1 event handler cross-module real:
   - `enrollment/.../on-lesson-published-recalc.handler.ts` (recalcula progreso al publicar lección).
 - **DI por símbolos** (`DATABASE`, repos por token) para testabilidad.
 

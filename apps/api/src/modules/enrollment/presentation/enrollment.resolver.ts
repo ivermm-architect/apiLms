@@ -10,7 +10,6 @@ import { EnrollmentAlreadyExistsException } from '../../../shared/exceptions/dom
 import { DATABASE } from '../../../core/database/database.module';
 import { DrizzleAuditRepository } from '../../admin/infrastructure/drizzle-audit.repository';
 import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator';
-import { Public } from '../../auth/infrastructure/decorators/public.decorator';
 import { RequirePermissions } from '../../auth/infrastructure/decorators/require-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { EnrollCommand } from '../application/commands/enroll.command';
@@ -23,7 +22,6 @@ import { MyEnrollmentsQuery } from '../application/queries/my-enrollments.query'
 import { AdminEnrollYearInput, TrackLessonViewInput } from './dto/enrollment.input';
 import {
   CourseStudentType,
-  EnrollmentCertificateType,
   EnrollmentType,
   EnrollYearResultType,
   TrackLessonViewResultType,
@@ -213,39 +211,5 @@ export class EnrollmentResolver {
       avatarUrl: r.avatarUrl ?? null,
       completedAt: r.completedAt ?? null,
     }));
-  }
-
-  /**
-   * Verifica un certificado por código (= enrollment.id) — público, sin auth.
-   * Devuelve null si el certificado no existe o el curso no está completado.
-   * Permite que cualquier persona valide la autenticidad del certificado.
-   */
-  @Public()
-  @Query(() => EnrollmentCertificateType, { nullable: true })
-  async verifyCertificate(@Args('code') code: string): Promise<EnrollmentCertificateType | null> {
-    const [row] = await this.db
-      .select({
-        enrollmentId: schema.enrollments.id,
-        completedAt: schema.enrollments.completedAt,
-        firstName: schema.users.firstName,
-        lastName: schema.users.lastName,
-        courseTitle: schema.courses.title,
-      })
-      .from(schema.enrollments)
-      .innerJoin(schema.users, eq(schema.users.id, schema.enrollments.userId))
-      .innerJoin(schema.courses, eq(schema.courses.id, schema.enrollments.courseId))
-      .where(and(eq(schema.enrollments.id, code), eq(schema.enrollments.status, 'completed')))
-      .limit(1);
-
-    if (!row || !row.completedAt) return null;
-
-    return {
-      id: row.enrollmentId,
-      code: row.enrollmentId,
-      studentName: `${row.firstName} ${row.lastName}`,
-      courseTitle: row.courseTitle,
-      issuedAt: row.completedAt,
-      valid: true,
-    };
   }
 }

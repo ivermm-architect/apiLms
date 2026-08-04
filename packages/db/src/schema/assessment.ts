@@ -8,7 +8,6 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -151,32 +150,6 @@ export const evaluationAnswers = pgTable(
   }),
 );
 
-// Certificados
-export const certificates = pgTable(
-  'certificates',
-  {
-    id: idColumn(),
-    studentId: uuid('student_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    courseId: uuid('course_id')
-      .notNull()
-      .references(() => courses.id, { onDelete: 'restrict' }),
-    enrollmentId: uuid('enrollment_id')
-      .notNull()
-      .references(() => enrollments.id, { onDelete: 'cascade' }),
-    certificateCode: varchar('certificate_code', { length: 50 }).notNull().unique(),
-    verificationUrl: text('verification_url'),
-    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
-    finalScore: numeric('final_score', { precision: 5, scale: 2 }),
-    ...timestamps,
-  },
-  (t) => ({
-    uniqueCertificate: unique('certificates_student_course_unique').on(t.studentId, t.courseId),
-    codeIdx: index('certificates_code_idx').on(t.certificateCode),
-  }),
-);
-
 // Relaciones
 export const gradesRelations = relations(grades, ({ one }) => ({
   student: one(users, { fields: [grades.studentId], references: [users.id] }),
@@ -225,18 +198,8 @@ export const evaluationAnswersRelations = relations(evaluationAnswers, ({ one })
   }),
 }));
 
-export const certificatesRelations = relations(certificates, ({ one }) => ({
-  student: one(users, { fields: [certificates.studentId], references: [users.id] }),
-  course: one(courses, { fields: [certificates.courseId], references: [courses.id] }),
-  enrollment: one(enrollments, {
-    fields: [certificates.enrollmentId],
-    references: [enrollments.id],
-  }),
-}));
-
 export type Grade = typeof grades.$inferSelect;
 export type Evaluation = typeof evaluations.$inferSelect;
 export type EvaluationQuestion = typeof evaluationQuestions.$inferSelect;
 export type EvaluationAttempt = typeof evaluationAttempts.$inferSelect;
 export type EvaluationAnswer = typeof evaluationAnswers.$inferSelect;
-export type Certificate = typeof certificates.$inferSelect;

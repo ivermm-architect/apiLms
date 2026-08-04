@@ -37,16 +37,6 @@ export class EnrollYearResultType {
 }
 
 @ObjectType()
-export class EnrollmentCertificateType {
-  @Field() id!: string;
-  @Field() code!: string;
-  @Field() studentName!: string;
-  @Field() courseTitle!: string;
-  @Field(() => GraphQLISODateTime) issuedAt!: Date;
-  @Field() valid!: boolean;
-}
-
-@ObjectType()
 export class UserEnrollmentType {
   @Field() enrollmentId!: string;
   @Field() courseId!: string;

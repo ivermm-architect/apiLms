@@ -15,7 +15,7 @@ import { seedPermissions } from './seed-permissions';
    Malla real de Técnico Medio en Enfermería (CIEBA Oruro): 13 materias
    en 2 años / 4 semestres, 5 docentes, 210 estudiantes en 3 cohortes de
    gestión (70 egresados 2024 + 80 en 2.º + 60 en 1.º), matrículas ancladas
-   por gestión y certificados. Contenido texto-primero.
+   por gestión. Contenido texto-primero.
    ───────────────────────────────────────────────────────────── */
 
 type Level = 'beginner' | 'intermediate' | 'advanced';
@@ -83,13 +83,8 @@ function courseCover(index: number): string {
   return COURSE_COVERS[index % COURSE_COVERS.length]!;
 }
 
-function genCertCode(idx: number): string {
-  const yyyy = new Date().getFullYear();
-  return `CERT-${yyyy}-${String(idx).padStart(6, '0')}`;
-}
-
 // Postgres limita a 65534 parámetros por sentencia. Con 210 alumnos los inserts
-// masivos (enrollments, lesson_progress, certificates) los superan → batch fijo.
+// masivos (enrollments, lesson_progress) los superan → batch fijo.
 function chunk<T>(rows: T[], size = 500): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
@@ -1644,30 +1639,6 @@ async function main() {
     }
   }
 
-  /* ─── 8. Certificates ─── */
-  console.info('  → Certificates (1 por enrollment completed)...');
-  const existingCerts = await db.select().from(schema.certificates);
-  if (existingCerts.length === 0) {
-    const completedEnrollments = await db
-      .select()
-      .from(schema.enrollments)
-      .where(eq(schema.enrollments.status, 'completed'));
-
-    const certInserts: (typeof schema.certificates.$inferInsert)[] = completedEnrollments.map(
-      (e, idx) => ({
-        studentId: e.userId,
-        courseId: e.courseId,
-        enrollmentId: e.id,
-        certificateCode: genCertCode(idx + 1),
-        issuedAt: e.completedAt ?? new Date(),
-        finalScore: '85.00',
-      }),
-    );
-    for (const batch of chunk(certInserts)) {
-      await db.insert(schema.certificates).values(batch).onConflictDoNothing();
-    }
-  }
-
   /* ─── Resumen ─── */
   console.info('\n✅ Seed completado');
   console.info(`   • ${roles.length} roles`);
@@ -1678,9 +1649,7 @@ async function main() {
   console.info(`   • ${totalSectionsInserted} secciones nuevas`);
   console.info(`   • ${totalLessonsInserted} lecciones nuevas`);
   const finalEnrollments = await db.select().from(schema.enrollments);
-  const finalCerts = await db.select().from(schema.certificates);
   console.info(`   • ${finalEnrollments.length} inscripciones (cohortes por año)`);
-  console.info(`   • ${finalCerts.length} certificados emitidos`);
 
   console.info('\n🔐 Credenciales de prueba (todas las cuentas: Cieba2025!):');
   console.info('   👑 admin@cieba.edu.bo');

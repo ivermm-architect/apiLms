@@ -74,7 +74,7 @@ pnpm docker:reset     # Reset completo (elimina volúmenes)
 2. **identity** — usuarios, roles/RBAC, alta y reset por admin
 3. **catalog** — cursos, categorías, secciones, lecciones, **competencias**
 4. **enrollment** — inscripción, progreso por lección, **progreso por competencia**
-5. **assessment** — evaluaciones, banco de ítems, certificados, **motor adaptativo (TRI/CAT/BKT)**
+5. **assessment** — evaluaciones, banco de ítems, **motor adaptativo (TRI/CAT/BKT)**
 6. **analytics** — reportes, alertas de riesgo, **dominio por competencia**
 7. **admin** — auditoría, roles, configuración, estado de usuarios/cursos
 

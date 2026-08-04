@@ -79,14 +79,3 @@ export class PendingOpenAnswerType {
   @Field() courseId!: string;
   @Field(() => GraphQLISODateTime, { nullable: true }) submittedAt?: Date | null;
 }
-
-@ObjectType()
-export class CertificateType {
-  @Field() id!: string;
-  @Field() studentId!: string;
-  @Field() courseId!: string;
-  @Field() certificateCode!: string;
-  @Field(() => String, { nullable: true }) verificationUrl?: string | null;
-  @Field(() => GraphQLISODateTime) issuedAt!: Date;
-  @Field(() => String, { nullable: true }) finalScore?: string | null;
-}

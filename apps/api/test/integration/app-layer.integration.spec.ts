@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { CommandBus, EventBus } from '@nestjs/cqrs';
+import { CommandBus } from '@nestjs/cqrs';
 import { schema, eq, type Database } from '@cieba/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -12,7 +12,6 @@ import type { TokenPair } from '../../src/modules/auth/domain/ports/token.port';
 import { StartEvaluationCommand } from '../../src/modules/assessment/application/commands/start-evaluation.command';
 import { SubmitEvaluationCommand } from '../../src/modules/assessment/application/commands/submit-evaluation.command';
 import { EnrollCommand } from '../../src/modules/enrollment/application/commands/enroll.command';
-import { CourseCompletedEvent } from '../../src/modules/enrollment/domain/events/student-enrolled.event';
 import {
   EntityNotFoundException,
   EnrollmentAlreadyExistsException,
@@ -33,7 +32,6 @@ const sha256 = (t: string) => createHash('sha256').update(t).digest('hex');
 let h: TestHarness;
 let db: Database;
 let bus: CommandBus;
-let events: EventBus;
 let ownership: CourseOwnershipService;
 let scn: Scenario;
 
@@ -41,7 +39,6 @@ beforeAll(async () => {
   h = await bootTestHarness();
   db = h.db;
   bus = h.moduleRef.get(CommandBus, { strict: false });
-  events = h.moduleRef.get(EventBus, { strict: false });
   ownership = h.moduleRef.get(CourseOwnershipService, { strict: false });
 
   await resetDb(db);
@@ -164,7 +161,7 @@ describe('RBAC (CourseOwnershipService)', () => {
   });
 });
 
-describe('ASSESSMENT (rendir evaluación → certificado)', () => {
+describe('ASSESSMENT (rendir evaluación)', () => {
   it('iniciar y enviar una evaluación aprobada califica el intento', async () => {
     const attempt = await bus.execute(
       new StartEvaluationCommand(scn.evaluationId, scn.studentId, scn.enrollmentId),
@@ -182,27 +179,5 @@ describe('ASSESSMENT (rendir evaluación → certificado)', () => {
     expect(submitted.submittedAt).not.toBeNull();
     expect(submitted.isPassed).toBe(true);
     expect(Number(submitted.percentage)).toBe(100);
-  });
-
-  it('completar el curso emite un certificado (IssueCertificateHandler)', async () => {
-    events.publish(
-      new CourseCompletedEvent(scn.enrollmentId, scn.studentId, scn.courseId),
-    );
-
-    // El handler de evento corre de forma asíncrona: hacemos polling breve.
-    let cert: (typeof schema.certificates.$inferSelect) | undefined;
-    for (let i = 0; i < 40 && !cert; i++) {
-      const [row] = await db
-        .select()
-        .from(schema.certificates)
-        .where(eq(schema.certificates.studentId, scn.studentId))
-        .limit(1);
-      cert = row;
-      if (!cert) await new Promise((r) => setTimeout(r, 50));
-    }
-
-    expect(cert).toBeDefined();
-    expect(cert?.courseId).toBe(scn.courseId);
-    expect(cert?.certificateCode).toMatch(/^CIEBA-/);
   });
 });

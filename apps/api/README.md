@@ -31,7 +31,7 @@ Backend del LMS CIEBA. NestJS + Fastify + GraphQL + Drizzle.
 | `identity`   | Users, roles, permissions                                  |
 | `catalog`    | Courses, sections, lessons (lista + detalle público)       |
 | `enrollment` | Inscripciones, progreso por lección                        |
-| `assessment` | Calificaciones, evaluaciones, intentos, certificados       |
+| `assessment` | Calificaciones, evaluaciones, intentos                     |
 | `analytics`  | Reportes, alertas de riesgo                                |
 | `admin`      | Auditoría, configuración del sistema                       |
 

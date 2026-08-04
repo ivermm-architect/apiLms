@@ -12,10 +12,8 @@ import { StartAdaptiveExamHandler } from './application/commands/start-adaptive-
 import { StartEvaluationHandler } from './application/commands/start-evaluation.command';
 import { SubmitAdaptiveAnswerHandler } from './application/commands/submit-adaptive-answer.command';
 import { SubmitEvaluationHandler } from './application/commands/submit-evaluation.command';
-import { IssueCertificateHandler } from './application/event-handlers/issue-certificate.handler';
 import { ITEM_PRIOR } from './domain/ports/item-prior.port';
 import { DrizzleAdaptiveRepository } from './infrastructure/drizzle-adaptive.repository';
-import { DrizzleCertificateRepository } from './infrastructure/drizzle-certificate.repository';
 import { DrizzleEvaluationRepository } from './infrastructure/drizzle-evaluation.repository';
 import { DrizzleGradeRepository } from './infrastructure/drizzle-grade.repository';
 import { LlmItemPriorAdapter } from './infrastructure/llm-item-prior.adapter';
@@ -27,14 +25,12 @@ import { AssessmentResolver } from './presentation/assessment.resolver';
   providers: [
     DrizzleGradeRepository,
     DrizzleEvaluationRepository,
-    DrizzleCertificateRepository,
     DrizzleAdaptiveRepository,
     AdaptiveService,
     GradeStudentHandler,
     GradeOpenAnswerHandler,
     StartEvaluationHandler,
     SubmitEvaluationHandler,
-    IssueCertificateHandler,
     StartAdaptiveExamHandler,
     SubmitAdaptiveAnswerHandler,
     CalibrateItemHandler,
@@ -44,6 +40,6 @@ import { AssessmentResolver } from './presentation/assessment.resolver';
     // Puerto de inicialización asistida por IA (cold-start), capa opcional.
     { provide: ITEM_PRIOR, useClass: LlmItemPriorAdapter },
   ],
-  exports: [DrizzleCertificateRepository, DrizzleEvaluationRepository, DrizzleGradeRepository],
+  exports: [DrizzleEvaluationRepository, DrizzleGradeRepository],
 })
 export class AssessmentModule {}

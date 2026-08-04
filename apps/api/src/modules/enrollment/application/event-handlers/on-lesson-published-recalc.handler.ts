@@ -9,7 +9,7 @@ import { LessonPublishedEvent } from '../../../catalog/domain/events/lesson-publ
 /**
  * Opción A: al añadir una lección, recalcula el progreso de todos los inscritos.
  * Si un alumno estaba `completed` y el contenido nuevo lo deja por debajo del
- * 100%, su inscripción vuelve a `active` (el certificado ya emitido se conserva).
+ * 100%, su inscripción vuelve a `active`.
  */
 @EventsHandler(LessonPublishedEvent)
 export class OnLessonPublishedRecalcHandler implements IEventHandler<LessonPublishedEvent> {

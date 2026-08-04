@@ -235,16 +235,6 @@ type CalibrationResultType {
   source: String
 }
 
-type CertificateType {
-  certificateCode: String!
-  courseId: String!
-  finalScore: String
-  id: String!
-  issuedAt: DateTime!
-  studentId: String!
-  verificationUrl: String
-}
-
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -440,15 +430,6 @@ type EnrollYearResultType {
   enrolled: Int!
   skipped: Int!
   total: Int!
-}
-
-type EnrollmentCertificateType {
-  code: String!
-  courseTitle: String!
-  id: String!
-  issuedAt: DateTime!
-  studentName: String!
-  valid: Boolean!
 }
 
 type EnrollmentType {
@@ -762,7 +743,6 @@ type Query {
   alerts(courseId: String): [AlertType!]!
   allSchedules: [CourseScheduleType!]!
   auditLogs(entityType: String, userId: String): [AuditLogType!]!
-  certificateByCode(code: String!): CertificateType
   course(slug: String!): CourseType!
   courseCompetencies(courseId: String!): [CompetencyType!]!
   courseCompetencyMastery(cohortYear: Int, courseId: String!): [CourseCompetencyMasteryType!]!
@@ -785,7 +765,6 @@ type Query {
   mallas: [MallaType!]!
   me: AuthUserType!
   myAdaptiveReport(courseId: String!): AdaptiveReportType!
-  myCertificates: [CertificateType!]!
   myCourseReport(courseId: String!): StudentReportType!
   myEnrollments: [EnrollmentType!]!
   myEvaluationAttempts(evaluationId: String!): [EvaluationAttemptType!]!
@@ -802,7 +781,6 @@ type Query {
   user(id: String!): UserType!
   userEnrollments(userId: String!): [UserEnrollmentType!]!
   users(input: ListUsersInput): UserListType!
-  verifyCertificate(code: String!): EnrollmentCertificateType
 }
 
 input QuestionOptionInput {

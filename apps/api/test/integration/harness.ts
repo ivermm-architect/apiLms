@@ -74,7 +74,6 @@ export async function bootTestHarness(): Promise<TestHarness> {
 export async function resetDb(db: Database): Promise<void> {
   await db.execute(sql`
     TRUNCATE TABLE
-      certificates,
       evaluation_answers,
       evaluation_attempts,
       evaluation_questions,
