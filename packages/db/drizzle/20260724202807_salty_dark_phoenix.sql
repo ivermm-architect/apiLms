@@ -1,0 +1,1 @@
+ALTER TABLE "enrollments" DROP COLUMN IF EXISTS "sale_item_id";

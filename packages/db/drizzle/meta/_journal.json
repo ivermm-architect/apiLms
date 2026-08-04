@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784876503285,
+      "tag": "20260724070143_cultured_jasper_sitwell",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784924887560,
+      "tag": "20260724202807_salty_dark_phoenix",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785011581229,
+      "tag": "20260725203301_ambitious_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785558348605,
+      "tag": "20260801042548_superb_speedball",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785566135749,
+      "tag": "20260801063535_famous_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785639390033,
+      "tag": "20260802025630_illegal_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785650259134,
+      "tag": "20260802055739_swift_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785688425518,
+      "tag": "20260802163345_volatile_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785692223742,
+      "tag": "20260802173703_clear_marvel_zombies",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785708890818,
+      "tag": "20260802221450_foamy_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785727822103,
+      "tag": "20260803033022_naive_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785806057378,
+      "tag": "20260804011417_shiny_monster_badoon",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,997 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AdaptiveItemType {
+  id: String!
+  options: [AdaptiveOptionType!]
+  questionText: String!
+  questionType: String!
+}
+
+type AdaptiveOptionType {
+  id: String!
+  text: String!
+}
+
+type AdaptiveReportType {
+  competencies: [CompetencyReportRowType!]!
+  courseId: String!
+  globalSe: Float
+  globalTheta: Float
+  itemDifficulties: [Float!]!
+  userId: String!
+}
+
+type AdaptiveStepType {
+  attemptId: String!
+  finished: Boolean!
+  itemsAdministered: Int!
+  nextItem: AdaptiveItemType
+  se: Float!
+  theta: Float!
+}
+
+input AddQuestionInput {
+  correctAnswer: String
+  evaluationId: String!
+  explanation: String
+  options: [QuestionOptionInput!]
+  points: Float
+  position: Int
+  questionText: String!
+  questionType: String!
+}
+
+type AdminCourseListType {
+  items: [AdminCourseType!]!
+  total: Int!
+}
+
+type AdminCourseRiskType {
+  atRiskStudents: Int!
+  id: String!
+  instructorName: String!
+  riskRatio: Float!
+  title: String!
+  trackedStudents: Int!
+}
+
+type AdminCourseType {
+  academicYear: Int!
+  coverImageUrl: String
+  createdAt: DateTime!
+  id: String!
+  instructorEmail: String!
+  instructorId: String!
+  instructorName: String!
+  level: String!
+  slug: String!
+  status: String!
+  subtitle: String
+  title: String!
+  totalLessons: Int!
+  totalStudents: Int!
+  updatedAt: DateTime!
+}
+
+type AdminDashboardOverviewType {
+  activeEnrollments: Int!
+  activeUsers: Int!
+  coursesAtRisk: [AdminCourseRiskType!]!
+  coursesWithoutInstructor: Int!
+  draftCourses: Int!
+  enrollmentsByGestion: [AdminGestionPointType!]!
+  newUsersThisGestion: Int!
+  publishedCourses: Int!
+  recentSignups: [AdminRecentSignupType!]!
+  topCoursesByStudents: [AdminTopCourseType!]!
+  totalStudents: Int!
+  totalTeachers: Int!
+}
+
+input AdminEnrollYearInput {
+  academicYear: Int!
+  userId: String!
+}
+
+type AdminGestionPointType {
+  count: Int!
+  gestion: Int!
+}
+
+type AdminRecentSignupType {
+  avatarUrl: String
+  createdAt: DateTime!
+  email: String!
+  firstName: String!
+  id: String!
+  lastName: String!
+  roles: [String!]!
+}
+
+type AdminTopCourseType {
+  id: String!
+  instructorName: String!
+  title: String!
+  totalStudents: Int!
+}
+
+type AdminUserListType {
+  items: [AdminUserType!]!
+  total: Int!
+}
+
+type AdminUserType {
+  avatarUrl: String
+  cohortYear: Int
+  coursesCreatedCount: Int!
+  createdAt: DateTime!
+  documentId: String
+  email: String!
+  enrollmentsCount: Int!
+  firstName: String!
+  id: String!
+  lastLoginAt: DateTime
+  lastName: String!
+  phone: String
+  profession: String
+  roles: [String!]!
+  status: String!
+  studentCode: String
+}
+
+type AlertType {
+  acknowledgedAt: DateTime
+  alertType: String!
+  courseId: String
+  createdAt: DateTime!
+  id: String!
+  message: String!
+  severity: String!
+  studentId: String!
+}
+
+input AnswerInput {
+  answer: String!
+  questionId: String!
+}
+
+type AuditLogType {
+  action: String!
+  actorName: String
+  createdAt: DateTime!
+  description: String
+  entityId: String
+  entityType: String
+  id: String!
+  ipAddress: String
+  metadata: JSON
+  severity: String!
+  userAgent: String
+  userId: String
+}
+
+type AuthPayloadType {
+  accessToken: String!
+  expiresIn: Float!
+  refreshToken: String!
+  user: AuthUserType!
+}
+
+type AuthUserType {
+  avatarUrl: String
+  bio: String
+  birthday: String
+  cohortYear: Int
+  createdAt: DateTime!
+  curriculumName: String
+  documentId: String
+  email: String!
+  emailVerified: Boolean!
+  firstName: String!
+  id: String!
+  lastLoginAt: DateTime
+  lastName: String!
+  mustChangePassword: Boolean!
+  phone: String
+  profession: String
+  roles: [String!]!
+  status: String!
+  studentCode: String
+}
+
+input BulkCreateStudentsInput {
+  cohortYear: Int!
+  enrollInYear: Boolean
+  rows: [BulkStudentRowInput!]!
+}
+
+type BulkResultRow {
+  email: String!
+  error: String
+  firstName: String
+  lastName: String
+  status: String!
+  studentCode: String
+  tempPassword: String
+}
+
+input BulkStudentRowInput {
+  birthday: String
+  documentId: String
+  email: String!
+  firstName: String!
+  lastName: String!
+  studentCode: String
+}
+
+type CalibrationResultType {
+  a: Float!
+  b: Float!
+  calibrated: Boolean!
+  questionId: String!
+  sampleSize: Int!
+  source: String
+}
+
+type CertificateType {
+  certificateCode: String!
+  courseId: String!
+  finalScore: String
+  id: String!
+  issuedAt: DateTime!
+  studentId: String!
+  verificationUrl: String
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+type CompetencyItemHealthType {
+  avgDifficultyB: Float
+  calibratedItems: Int!
+  code: String!
+  competencyId: String!
+  easyItems: Int!
+  hardItems: Int!
+  itemsNeedingResponses: Int!
+  mediumItems: Int!
+  name: String!
+  totalItems: Int!
+}
+
+type CompetencyReportRowType {
+  code: String!
+  competencyId: String!
+  mastery: Float!
+  name: String!
+  se: Float
+  status: String!
+  theta: Float
+}
+
+type CompetencyType {
+  code: String!
+  courseId: String!
+  description: String
+  id: String!
+  name: String!
+}
+
+type CourseCompetencyMasteryType {
+  avgMastery: Float!
+  code: String!
+  competencyId: String!
+  name: String!
+  studentsAtRisk: Int!
+  studentsMastered: Int!
+  studentsTracked: Int!
+}
+
+type CourseItemBankHealthType {
+  calibratedItems: Int!
+  calibrationRate: Float!
+  competencies: [CompetencyItemHealthType!]!
+  courseId: String!
+  totalItems: Int!
+}
+
+type CourseListMeta {
+  page: Int!
+  pageSize: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type CourseListType {
+  items: [CourseType!]!
+  meta: CourseListMeta!
+}
+
+type CourseScheduleType {
+  courseId: String!
+  courseTitle: String
+  dayOfWeek: Int!
+  endTime: String!
+  id: String!
+  instructorName: String
+  room: String
+  startTime: String!
+}
+
+type CourseStudentType {
+  avatarUrl: String
+  completedAt: DateTime
+  email: String!
+  enrolledAt: DateTime!
+  enrollmentId: String!
+  firstName: String!
+  lastName: String!
+  lessonsCompleted: Int!
+  progressPercentage: String!
+  status: String!
+  totalLessons: Int!
+  userId: String!
+}
+
+type CourseType {
+  academicYear: Int!
+  coverImageUrl: String
+  createdAt: DateTime!
+  curriculumId: String
+  description: String!
+  durationMinutes: Int!
+  id: String!
+  instructorId: String!
+  language: String!
+  level: String!
+  requirements: String
+  slug: String!
+  status: String!
+  subtitle: String
+  targetAudience: String
+  title: String!
+  totalLessons: Int!
+  totalStudents: Int!
+  updatedAt: DateTime!
+}
+
+input CreateCompetencyInput {
+  code: String!
+  courseId: String!
+  description: String
+  name: String!
+}
+
+input CreateCourseInput {
+  academicYear: Int
+  curriculumId: String
+  description: String!
+  instructorId: String
+  language: String
+  level: String
+  subtitle: String
+  title: String!
+}
+
+input CreateEvaluationInput {
+  courseId: String!
+  description: String
+  difficulty: String
+  lessonId: String
+  maxAttempts: Int
+  passingScore: Float
+  timeLimitMinutes: Int
+  title: String!
+}
+
+input CreateLessonInput {
+  content: String
+  courseId: String!
+  description: String
+  position: Int
+  sectionId: String!
+  title: String!
+}
+
+input CreateScheduleInput {
+  courseId: String!
+  dayOfWeek: Int!
+  endTime: String!
+  room: String
+  startTime: String!
+}
+
+input CreateSectionInput {
+  courseId: String!
+  description: String
+  position: Int
+  title: String!
+}
+
+input CreateUserInput {
+  birthday: String
+  cohortYear: Int
+  documentId: String
+  email: String!
+  firstName: String!
+  lastName: String!
+  phone: String
+  profession: String
+  roleIds: [String!]
+  studentCode: String
+}
+
+type CreatedUserType {
+  tempPassword: String!
+  user: UserType!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type EnrollYearResultType {
+  academicYear: Int!
+  enrolled: Int!
+  skipped: Int!
+  total: Int!
+}
+
+type EnrollmentCertificateType {
+  code: String!
+  courseTitle: String!
+  id: String!
+  issuedAt: DateTime!
+  studentName: String!
+  valid: Boolean!
+}
+
+type EnrollmentType {
+  completedAt: DateTime
+  courseId: String!
+  enrolledAt: DateTime!
+  id: String!
+  lastLessonId: String
+  lessonsCompleted: Int!
+  progressPercentage: String!
+  startedAt: DateTime
+  status: String!
+  totalLessons: Int!
+  userId: String!
+}
+
+type EvaluationAttemptType {
+  attemptNumber: Int!
+  evaluationId: String!
+  id: String!
+  isPassed: Boolean!
+  maxScore: String
+  percentage: String
+  score: String
+  startedAt: DateTime!
+  studentId: String!
+  submittedAt: DateTime
+}
+
+type EvaluationQuestionOption {
+  id: String!
+  text: String!
+}
+
+type EvaluationQuestionType {
+  evaluationId: String!
+  id: String!
+  options: [EvaluationQuestionOption!]
+  points: String!
+  position: Int!
+  questionText: String!
+  questionType: String!
+}
+
+type EvaluationType {
+  courseId: String!
+  description: String
+  difficulty: String!
+  id: String!
+  isAiGenerated: Boolean!
+  lessonId: String
+  maxAttempts: Int!
+  passingScore: String!
+  timeLimitMinutes: Int
+  title: String!
+}
+
+input GradeStudentInput {
+  courseId: String!
+  enrollmentId: String!
+  feedback: String
+  lessonId: String
+  maxScore: Float
+  score: Float!
+  studentId: String!
+  title: String!
+  weight: Float
+}
+
+type GradeType {
+  courseId: String!
+  enrollmentId: String!
+  feedback: String
+  gradedAt: DateTime!
+  id: String!
+  lessonId: String
+  maxScore: String!
+  score: String!
+  studentId: String!
+  teacherId: String!
+  title: String!
+  weight: String!
+}
+
+type InstructorAnalyticsType {
+  completedEnrollments: Int!
+  completionRate: String!
+  enrollmentsByMonth: [MonthlyEnrollmentPointType!]!
+  topCoursesByStudents: [InstructorTopCourseType!]!
+  totalEnrollments: Int!
+}
+
+type InstructorAtRiskCompetencyType {
+  code: String!
+  mastery: Float!
+  name: String!
+}
+
+type InstructorAtRiskStudentType {
+  avatarUrl: String
+  competencies: [InstructorAtRiskCompetencyType!]!
+  courseId: String!
+  courseTitle: String!
+  email: String!
+  firstName: String!
+  lastActivityAt: DateTime
+  lastName: String!
+  lowestMastery: Float!
+  userId: String!
+}
+
+type InstructorCompetencyStatusType {
+  count: Int!
+  status: String!
+}
+
+type InstructorCourseType {
+  academicYear: Int!
+  avgProgress: String!
+  coverImageUrl: String
+  createdAt: DateTime!
+  description: String!
+  durationMinutes: Int!
+  id: String!
+  lastActivityAt: DateTime
+  level: String!
+  pendingGradesCount: Int!
+  requirements: String
+  slug: String!
+  status: String!
+  subtitle: String
+  targetAudience: String
+  title: String!
+  totalLessons: Int!
+  totalStudents: Int!
+  updatedAt: DateTime!
+}
+
+type InstructorDashboardStatsType {
+  competencyStatusDistribution: [InstructorCompetencyStatusType!]!
+  draftCourses: Int!
+  inactiveStudents: Int!
+  masteryHistogram: [InstructorMasteryBucketType!]!
+  pendingGradesCount: Int!
+  publishedCourses: Int!
+  studentsAtRisk: Int!
+  totalStudents: Int!
+  weakestCompetency: WeakestCompetencyType
+}
+
+type InstructorMasteryBucketType {
+  count: Int!
+  rangeLabel: String!
+}
+
+type InstructorTopCourseType {
+  id: String!
+  title: String!
+  totalStudents: Int!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON @specifiedBy(url: "http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf")
+
+type LessonType {
+  content: String
+  courseId: String!
+  createdAt: DateTime!
+  description: String
+  id: String!
+  isActive: Boolean!
+  isFreePreview: Boolean!
+  position: Int!
+  sectionId: String!
+  slug: String!
+  title: String!
+}
+
+input ListCoursesInput {
+  academicYear: Int
+  instructorId: String
+  level: String
+  page: Int = 1
+  pageSize: Int = 20
+  search: String
+  sortBy: String
+  sortOrder: String
+  status: String
+}
+
+input ListUsersInput {
+  page: Int = 1
+  pageSize: Int = 20
+  search: String
+  sortBy: String
+  sortOrder: String
+  status: String
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type MallaType {
+  courseCount: Int!
+  createdAt: DateTime!
+  id: String!
+  name: String!
+  resolution: String
+  status: String!
+}
+
+type MonthlyEnrollmentPointType {
+  count: Int!
+  month: String!
+}
+
+type Mutation {
+  acknowledgeAlert(id: String!): Boolean!
+  activateMalla(id: String!): MallaType!
+  addEvaluationQuestion(input: AddQuestionInput!): EvaluationQuestionType!
+  adminArchiveCourse(id: String!): Boolean!
+  adminEnrollStudentInYear(input: AdminEnrollYearInput!): EnrollYearResultType!
+  adminSoftDeleteCourse(id: String!): Boolean!
+  adminUnenroll(enrollmentId: String!): Boolean!
+  archiveCourse(id: String!): Boolean!
+  assignCourseInstructor(courseId: String!, instructorId: String!): CourseType!
+  assignRole(roleName: String!, userId: String!): Boolean!
+  bulkCreateStudents(input: BulkCreateStudentsInput!): [BulkResultRow!]!
+  calibrateItem(questionId: String!): CalibrationResultType!
+  changePassword(input: ChangePasswordInput!): Boolean!
+  createCompetency(input: CreateCompetencyInput!): CompetencyType!
+  createCourse(input: CreateCourseInput!): CourseType!
+  createEvaluation(input: CreateEvaluationInput!): EvaluationType!
+  createLesson(input: CreateLessonInput!): LessonType!
+  createMalla(name: String!, resolution: String): MallaType!
+  createSchedule(input: CreateScheduleInput!): CourseScheduleType!
+  createSection(input: CreateSectionInput!): SectionType!
+  createUser(input: CreateUserInput!): CreatedUserType!
+  deleteCompetency(id: String!): Boolean!
+  deleteEvaluation(id: String!): Boolean!
+  deleteEvaluationQuestion(id: String!): Boolean!
+  deleteLesson(id: String!): Boolean!
+  deleteSchedule(id: String!): Boolean!
+  deleteSection(id: String!): Boolean!
+  gradeOpenAnswer(answerId: String!, points: Float!): EvaluationAttemptType!
+  gradeStudent(input: GradeStudentInput!): GradeType!
+  linkLessonCompetency(competencyId: String!, lessonId: String!): Boolean!
+  linkQuestionCompetency(competencyId: String!, questionId: String!): Boolean!
+  login(input: LoginInput!): AuthPayloadType!
+  logout(allDevices: Boolean, refreshToken: String): Boolean!
+  publishCourse(id: String!): CourseType!
+  refresh(input: RefreshInput!): TokenPairType!
+  reorderLessons(items: [ReorderItemInput!]!, sectionId: String!): Boolean!
+  reorderSections(courseId: String!, items: [ReorderItemInput!]!): Boolean!
+  revokeRole(roleName: String!, userId: String!): Boolean!
+  revokeSession(id: String!): Boolean!
+  runAlertScan: Int!
+  setConfig(key: String!, value: String!): Boolean!
+  setUserStatus(status: String!, userId: String!): Boolean!
+  startAdaptiveExam(enrollmentId: String!, evaluationId: String!): AdaptiveStepType!
+  startDiagnostic(courseId: String!, enrollmentId: String!): AdaptiveStepType!
+  startEvaluation(enrollmentId: String!, evaluationId: String!): EvaluationAttemptType!
+  submitAdaptiveAnswer(answer: String!, attemptId: String!, questionId: String!): AdaptiveStepType!
+  submitEvaluation(input: SubmitEvaluationInput!): EvaluationAttemptType!
+  trackLessonView(input: TrackLessonViewInput!): TrackLessonViewResultType!
+  unlinkLessonCompetency(competencyId: String!, lessonId: String!): Boolean!
+  unlinkQuestionCompetency(competencyId: String!, questionId: String!): Boolean!
+  unpublishCourse(id: String!): Boolean!
+  updateCompetency(input: UpdateCompetencyInput!): CompetencyType!
+  updateCourse(id: String!, input: UpdateCourseInput!): CourseType!
+  updateLesson(id: String!, input: UpdateLessonInput!): LessonType!
+  updateProfile(input: UpdateProfileInput!): AuthUserType!
+  updateSchedule(id: String!, input: UpdateScheduleInput!): CourseScheduleType!
+  updateSection(id: String!, input: UpdateSectionInput!): SectionType!
+  updateUser(id: String!, input: UpdateUserInput!): UserType!
+}
+
+type PendingOpenAnswerType {
+  answer: String
+  answerId: String!
+  attemptId: String!
+  courseId: String!
+  enrollmentId: String!
+  evaluationId: String!
+  evaluationTitle: String!
+  maxPoints: String!
+  questionId: String!
+  questionText: String!
+  studentId: String!
+  studentName: String!
+  submittedAt: DateTime
+}
+
+type PublicBrandingType {
+  faviconUrl: String
+  footerText: String
+  logoUrl: String
+  platformName: String
+  primaryColor: String
+  secondaryColor: String
+}
+
+type Query {
+  adminCourses(curriculumId: String, instructorId: String, page: Int = 1, pageSize: Int = 20, search: String, status: String): AdminCourseListType!
+  adminDashboardOverview: AdminDashboardOverviewType!
+  adminUsers(cohortYear: Int, page: Int = 1, pageSize: Int = 20, role: String, search: String, status: String): AdminUserListType!
+  alerts(courseId: String): [AlertType!]!
+  allSchedules: [CourseScheduleType!]!
+  auditLogs(entityType: String, userId: String): [AuditLogType!]!
+  certificateByCode(code: String!): CertificateType
+  course(slug: String!): CourseType!
+  courseCompetencies(courseId: String!): [CompetencyType!]!
+  courseCompetencyMastery(cohortYear: Int, courseId: String!): [CourseCompetencyMasteryType!]!
+  courseEvaluations(courseId: String!): [EvaluationType!]!
+  courseItemBankHealth(courseId: String!): CourseItemBankHealthType!
+  coursePendingAnswers(courseId: String!): [PendingOpenAnswerType!]!
+  courseScheduleBlocks(courseId: String!): [CourseScheduleType!]!
+  courseSchedules(courseId: String!): [CourseScheduleType!]!
+  courseSections(courseId: String!): [SectionType!]!
+  courseStudents(courseId: String!): [CourseStudentType!]!
+  courses(input: ListCoursesInput): CourseListType!
+  evaluation(id: String!): EvaluationType
+  evaluationQuestions(evaluationId: String!): [EvaluationQuestionType!]!
+  evaluationQuestionsForOwner(evaluationId: String!): [EvaluationQuestionType!]!
+  getConfig(key: String!): String
+  instructorAnalytics: InstructorAnalyticsType!
+  instructorAtRiskStudents: [InstructorAtRiskStudentType!]!
+  instructorDashboardStats(cohortYear: Int): InstructorDashboardStatsType!
+  lessonCompetencies(lessonId: String!): [CompetencyType!]!
+  mallas: [MallaType!]!
+  me: AuthUserType!
+  myAdaptiveReport(courseId: String!): AdaptiveReportType!
+  myCertificates: [CertificateType!]!
+  myCourseReport(courseId: String!): StudentReportType!
+  myEnrollments: [EnrollmentType!]!
+  myEvaluationAttempts(evaluationId: String!): [EvaluationAttemptType!]!
+  myGrades(courseId: String): [GradeType!]!
+  myInstructorCourses(status: String): [InstructorCourseType!]!
+  mySchedule: [CourseScheduleType!]!
+  mySessions: [SessionType!]!
+  publicBranding: PublicBrandingType
+  roles: [RoleType!]!
+  sectionLessons(sectionId: String!): [LessonType!]!
+  studentAdaptiveReport(courseId: String!, studentId: String!): AdaptiveReportType!
+  studentReport(courseId: String!, studentId: String!): StudentReportType!
+  topInstructors(limit: Int = 4): [TopInstructorType!]!
+  user(id: String!): UserType!
+  userEnrollments(userId: String!): [UserEnrollmentType!]!
+  users(input: ListUsersInput): UserListType!
+  verifyCertificate(code: String!): EnrollmentCertificateType
+}
+
+input QuestionOptionInput {
+  id: String!
+  isCorrect: Boolean!
+  text: String!
+}
+
+input RefreshInput {
+  refreshToken: String!
+}
+
+input ReorderItemInput {
+  id: String!
+  position: Int!
+}
+
+type RoleType {
+  description: String
+  id: String!
+  isSystem: Boolean!
+  name: String!
+  permissions: [String!]!
+}
+
+type SectionType {
+  courseId: String!
+  description: String
+  id: String!
+  isActive: Boolean!
+  position: Int!
+  title: String!
+}
+
+type SessionType {
+  createdAt: DateTime!
+  current: Boolean!
+  expiresAt: DateTime!
+  id: String!
+  ipAddress: String
+  userAgent: String
+}
+
+type StudentReportType {
+  avgScore: Float!
+  courseId: String
+  lessonsCompleted: Int!
+  progressPercentage: Float!
+  riskLevel: String!
+  studentId: String!
+  totalLessons: Int!
+}
+
+input SubmitEvaluationInput {
+  answers: [AnswerInput!]!
+  attemptId: String!
+}
+
+type TokenPairType {
+  accessToken: String!
+  expiresIn: Float!
+  refreshToken: String!
+}
+
+type TopInstructorType {
+  avatarUrl: String
+  courseCount: Int!
+  firstName: String!
+  id: String!
+  lastName: String!
+  profession: String
+  totalStudents: Int!
+}
+
+input TrackLessonViewInput {
+  enrollmentId: String!
+  isCompleted: Boolean!
+  lessonId: String!
+}
+
+type TrackLessonViewResultType {
+  courseCompleted: Boolean!
+  lessonsCompleted: Int!
+  progressPercentage: Float!
+  totalLessons: Int!
+}
+
+input UpdateCompetencyInput {
+  code: String
+  description: String
+  id: String!
+  name: String
+}
+
+input UpdateCourseInput {
+  academicYear: Int
+  coverImageUrl: String
+  description: String
+  language: String
+  level: String
+  requirements: String
+  subtitle: String
+  targetAudience: String
+  title: String
+}
+
+input UpdateLessonInput {
+  content: String
+  description: String
+  isFreePreview: Boolean
+  position: Int
+  title: String
+}
+
+input UpdateProfileInput {
+  avatarUrl: String
+  bio: String
+  birthday: String
+  firstName: String
+  lastName: String
+  phone: String
+  profession: String
+}
+
+input UpdateScheduleInput {
+  dayOfWeek: Int
+  endTime: String
+  room: String
+  startTime: String
+}
+
+input UpdateSectionInput {
+  description: String
+  position: Int
+  title: String
+}
+
+input UpdateUserInput {
+  firstName: String
+  lastName: String
+  phone: String
+  profession: String
+}
+
+type UserEnrollmentType {
+  academicYear: Int!
+  completedAt: DateTime
+  courseId: String!
+  courseTitle: String!
+  enrolledAt: DateTime!
+  enrollmentId: String!
+  lessonsCompleted: Int!
+  progressPercentage: String!
+  status: String!
+  totalLessons: Int!
+}
+
+type UserListMeta {
+  page: Int!
+  pageSize: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type UserListType {
+  items: [UserType!]!
+  meta: UserListMeta!
+}
+
+type UserType {
+  avatarUrl: String
+  createdAt: DateTime!
+  documentId: String
+  email: String!
+  firstName: String!
+  id: String!
+  lastName: String!
+  mustChangePassword: Boolean!
+  phone: String
+  profession: String
+  roles: [String!]
+  status: String!
+  studentCode: String
+  updatedAt: DateTime!
+}
+
+type WeakestCompetencyType {
+  avgMastery: Float!
+  code: String!
+  courseId: String!
+  name: String!
+}

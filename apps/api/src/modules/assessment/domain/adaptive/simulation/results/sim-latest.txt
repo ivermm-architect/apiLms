@@ -1,0 +1,31 @@
+══════════════════════════════════════════════════════════
+ Simulación Monte-Carlo — Motor Adaptativo (100 réplicas)
+ Semilla base: 20260730   ·   2026-07-30T21:52:05.934Z
+══════════════════════════════════════════════════════════
+
+── 1. Calibración TRI (2PL) ─────────────────────────────
+  N=1000 examinados · 40 ítems
+  a  (discriminación):  bias -1.225 ± 0.086  rmse 1.335 ± 0.081  r 0.444 ± 0.117
+  b  (dificultad):      bias -0.002 ± 0.062  rmse 0.408 ± 0.067  r 0.971 ± 0.010
+  ítems calibrados:     40.0 ± 0.0
+
+── 1b. Misspecificación (datos 3PL c=0.2, ajuste 2PL) ───
+  a  (discriminación):  bias -1.296 ± 0.091  rmse 1.410 ± 0.084  r 0.416 ± 0.101
+  b  (dificultad):      bias -0.287 ± 0.078  rmse 0.599 ± 0.080  r 0.964 ± 0.013
+
+── 2. CAT (recuperación de θ) ───────────────────────────
+  N=1500 examinados · banco 300 · SE≤0.3 · 5–20 ítems
+  θ:  bias 0.001 ± 0.007  rmse 0.292 ± 0.007  r 0.956 ± 0.003
+  longitud media test:  10.3 ± 0.2
+  SE final media:       0.293 ± 0.001
+  RMSE θ en [-3,-1) : 0.316 ± 0.017  (n 236 ± 12)
+  RMSE θ en [-1,1]  : 0.280 ± 0.007  (n 1026 ± 16)
+  RMSE θ en (1,3]   : 0.316 ± 0.016  (n 234 ± 13)
+
+── 3. BKT (predicción respuesta siguiente) ──────────────
+  N=200 alumnos · 15 oportunidades
+  AUC:                  0.802 ± 0.010
+  accuracy (umbral .5): 0.780 ± 0.009
+  P̂ media:              0.674 ± 0.010
+  observaciones:        3000 ± 0
+══════════════════════════════════════════════════════════
