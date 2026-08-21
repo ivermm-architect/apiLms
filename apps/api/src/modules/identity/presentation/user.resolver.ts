@@ -1,8 +1,9 @@
 import { JwtPayload, PERMISSIONS } from '@cieba/shared';
 import { UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Context, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 
+import { GqlContext } from '../../../core/graphql/loaders/loaders.factory';
 import { DrizzleAuditRepository } from '../../admin/infrastructure/drizzle-audit.repository';
 import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator';
 import { RequirePermissions } from '../../auth/infrastructure/decorators/require-permissions.decorator';
@@ -11,10 +12,7 @@ import {
   BulkResult,
   CreateBulkStudentsCommand,
 } from '../application/commands/create-bulk-students.command';
-import {
-  CreateUserCommand,
-  CreateUserResult,
-} from '../application/commands/create-user.command';
+import { CreateUserCommand, CreateUserResult } from '../application/commands/create-user.command';
 import { UpdateUserCommand } from '../application/commands/update-user.command';
 import { GetUserQuery } from '../application/queries/get-user.query';
 import { ListUsersHandler, ListUsersQuery } from '../application/queries/list-users.query';
@@ -35,6 +33,18 @@ export class UserResolver {
     private readonly queryBus: QueryBus,
     private readonly audit: DrizzleAuditRepository,
   ) {}
+
+  /**
+   * Resuelve `roles` por campo. Si el resolver raíz ya materializó los roles
+   * (p. ej. una consulta que los trae en lote), se reutilizan; si no, se piden
+   * al DataLoader de la petición, que agrupa todos los userId del listado en
+   * UNA sola consulta (evita el N+1 clásico de "un SELECT de roles por usuario").
+   */
+  @ResolveField(() => [String], { nullable: true })
+  roles(@Parent() user: UserType, @Context() ctx: GqlContext): string[] | Promise<string[]> {
+    if (user.roles) return user.roles;
+    return ctx.loaders.userRoles.load(user.id);
+  }
 
   @Query(() => UserType)
   @RequirePermissions(PERMISSIONS.USER_READ)

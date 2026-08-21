@@ -12,6 +12,8 @@ import { LoggerModule } from 'nestjs-pino';
 
 import { ConfigSchema } from './core/config/env.schema';
 import { CoreModule } from './core/core.module';
+import { DataloaderModule } from './core/graphql/dataloader.module';
+import { LoadersFactory } from './core/graphql/loaders/loaders.factory';
 import { HealthModule } from './core/health/health.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -20,6 +22,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { EnrollmentModule } from './modules/enrollment/enrollment.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { RecommendationModule } from './modules/recommendation/recommendation.module';
 import { GqlThrottlerGuard } from './shared/guards/gql-throttler.guard';
 
 @Module({
@@ -100,19 +103,28 @@ import { GqlThrottlerGuard } from './shared/guards/gql-throttler.guard';
 
     CqrsModule.forRoot(),
 
-    GraphQLModule.forRoot<ApolloDriverConfig>({
+    GraphQLModule.forRootAsync<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-      sortSchema: true,
-      playground: process.env.NODE_ENV !== 'production',
-      introspection: process.env.NODE_ENV !== 'production',
-      // La integración Apollo+Fastify pasa el Request como 1er arg (y reply como
-      // 2º si está disponible). Posicional, no destructuring de un objeto.
-      context: (request: unknown, reply: unknown) => ({ req: request, res: reply }),
-      formatError: (formatted) => ({
-        message: formatted.message,
-        code: formatted.extensions?.code ?? 'INTERNAL_ERROR',
-        path: formatted.path,
+      imports: [DataloaderModule],
+      inject: [LoadersFactory],
+      useFactory: (loaders: LoadersFactory) => ({
+        autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+        sortSchema: true,
+        playground: process.env.NODE_ENV !== 'production',
+        introspection: process.env.NODE_ENV !== 'production',
+        // La integración Apollo+Fastify pasa el Request como 1er arg (y reply como
+        // 2º si está disponible). Posicional, no destructuring de un objeto.
+        // Un juego de DataLoaders NUEVO por petición (batching + caché acotada).
+        context: (request: unknown, reply: unknown) => ({
+          req: request,
+          res: reply,
+          loaders: loaders.create(),
+        }),
+        formatError: (formatted) => ({
+          message: formatted.message,
+          code: formatted.extensions?.code ?? 'INTERNAL_ERROR',
+          path: formatted.path,
+        }),
       }),
     }),
 
@@ -127,6 +139,7 @@ import { GqlThrottlerGuard } from './shared/guards/gql-throttler.guard';
     EnrollmentModule,
     AssessmentModule,
     AnalyticsModule,
+    RecommendationModule,
     AdminModule,
   ],
   // Rate limiting global: GqlThrottlerGuard adapta ThrottlerGuard al contexto

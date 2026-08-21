@@ -41,6 +41,10 @@ export const ConfigSchema = z
     AI_MODEL: z.string().default('llama3.2:3b'),
     // Timeout de la llamada al modelo. Ollama local puede necesitar 30s+ en frío.
     AI_TIMEOUT_MS: z.coerce.number().default(30000),
+    // IA — Explicación de recomendaciones de contenido (HIST-7), OPCIONAL e
+    // independiente de la calibración. Con AI_RECOMMENDATION_ENABLED=false el
+    // recomendador usa SOLO su justificación determinista (comportamiento actual).
+    AI_RECOMMENDATION_ENABLED: z.coerce.boolean().default(false),
   })
   .superRefine((cfg, ctx) => {
     // En producción, rechazamos secretos de desarrollo para fallar rápido en boot

@@ -89,3 +89,42 @@ export class AdminDashboardOverviewType {
   /** Cursos con mayor % de alumnos en riesgo (salud sistémica, decisión de recursos). */
   @Field(() => [AdminCourseRiskType]) coursesAtRisk!: AdminCourseRiskType[];
 }
+
+/** Indicadores agregados de una cohorte (año de ingreso del estudiante). */
+@ObjectType()
+export class CohortReportRowType {
+  /** Año de ingreso (users.cohortYear). */
+  @Field(() => Int) cohortYear!: number;
+  /** Estudiantes distintos de la cohorte. */
+  @Field(() => Int) studentCount!: number;
+  /** Progreso medio de matrícula 0..100. */
+  @Field(() => Float) avgProgress!: number;
+  /** Dominio medio por competencia 0..100. */
+  @Field(() => Float) avgMastery!: number;
+  /** Estudiantes distintos con ≥1 competencia en riesgo. */
+  @Field(() => Int) atRiskStudents!: number;
+}
+
+/** Salud de calibración del banco de ítems para un curso. */
+@ObjectType()
+export class ItemBankCourseHealthType {
+  @Field() courseId!: string;
+  @Field() courseTitle!: string;
+  @Field(() => Int) totalItems!: number;
+  /** Calibrados con datos reales (canónico). */
+  @Field(() => Int) empiricalItems!: number;
+  /** Con semilla asistida por IA en cold-start. */
+  @Field(() => Int) aiPriorItems!: number;
+  /** Sin parámetros TRI (pendientes de calibrar). */
+  @Field(() => Int) uncalibratedItems!: number;
+}
+
+/** Cobertura de calibración TRI del banco de ítems (resumen + desglose por curso). */
+@ObjectType()
+export class ItemBankHealthType {
+  @Field(() => Int) totalItems!: number;
+  @Field(() => Int) empiricalItems!: number;
+  @Field(() => Int) aiPriorItems!: number;
+  @Field(() => Int) uncalibratedItems!: number;
+  @Field(() => [ItemBankCourseHealthType]) byCourse!: ItemBankCourseHealthType[];
+}

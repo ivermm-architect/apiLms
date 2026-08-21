@@ -13,6 +13,8 @@ import { DrizzleAnalyticsRepository } from '../infrastructure/drizzle-analytics.
 import {
   AdminDashboardOverviewType,
   AlertType,
+  CohortReportRowType,
+  ItemBankHealthType,
   StudentReportType,
 } from './dto/analytics.types';
 
@@ -42,8 +44,7 @@ export class AnalyticsResolver {
   ): Promise<StudentReportType> {
     // Estudiantes solo pueden ver su propio reporte
     const isSelf = user.sub === studentId;
-    const isPrivileged =
-      user.roles.includes('admin') || user.roles.includes('teacher');
+    const isPrivileged = user.roles.includes('admin') || user.roles.includes('teacher');
     if (!isSelf && !isPrivileged) {
       throw new Error('No puedes ver el reporte de otro estudiante');
     }
@@ -79,5 +80,19 @@ export class AnalyticsResolver {
   @RequirePermissions(PERMISSIONS.ANALYTICS_ADMIN)
   adminDashboardOverview(): Promise<AdminDashboardOverviewType> {
     return this.repo.getAdminDashboardOverview() as unknown as Promise<AdminDashboardOverviewType>;
+  }
+
+  /** Reporte institucional por cohorte (año de ingreso). Solo admin. */
+  @Query(() => [CohortReportRowType])
+  @RequirePermissions(PERMISSIONS.ANALYTICS_ADMIN)
+  cohortReport(): Promise<CohortReportRowType[]> {
+    return this.repo.getCohortReport();
+  }
+
+  /** Cobertura de calibración TRI del banco de ítems. Docentes y admin. */
+  @Query(() => ItemBankHealthType)
+  @RequirePermissions(PERMISSIONS.ANALYTICS_READ)
+  itemBankHealth(): Promise<ItemBankHealthType> {
+    return this.repo.getItemBankHealth();
   }
 }

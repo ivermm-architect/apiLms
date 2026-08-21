@@ -324,4 +324,152 @@ export class DrizzleAnalyticsRepository {
       }),
     };
   }
+
+  /**
+   * Reporte por cohorte (año de ingreso del estudiante, users.cohortYear).
+   * Indicadores agregados de resultado por cohorte, para lectura institucional.
+   *
+   * Se calcula con consultas separadas por métrica (evita el fan-out de joins de
+   * distinta cardinalidad) y se combina en memoria por cohortYear.
+   */
+  async getCohortReport(): Promise<
+    Array<{
+      cohortYear: number;
+      studentCount: number;
+      avgProgress: number;
+      avgMastery: number;
+      atRiskStudents: number;
+    }>
+  > {
+    const [counts, progress, mastery] = await Promise.all([
+      // Alumnos por cohorte (cohortYear no nulo = estudiante, no borrado).
+      this.db
+        .select({
+          cohortYear: schema.users.cohortYear,
+          students: sql<number>`count(distinct ${schema.users.id})::int`,
+        })
+        .from(schema.users)
+        .where(
+          and(sql`${schema.users.cohortYear} is not null`, sql`${schema.users.deletedAt} is null`),
+        )
+        .groupBy(schema.users.cohortYear),
+      // Progreso medio de matrícula por cohorte.
+      this.db
+        .select({
+          cohortYear: schema.users.cohortYear,
+          avgProgress: sql<string>`avg(${schema.enrollments.progressPercentage}::numeric)`,
+        })
+        .from(schema.enrollments)
+        .innerJoin(schema.users, eq(schema.users.id, schema.enrollments.userId))
+        .where(sql`${schema.users.cohortYear} is not null`)
+        .groupBy(schema.users.cohortYear),
+      // Dominio medio y alumnos en riesgo por cohorte.
+      this.db
+        .select({
+          cohortYear: schema.users.cohortYear,
+          avgMastery: sql<string>`avg(${schema.competencyProgress.mastery}::numeric)`,
+          atRisk: sql<number>`count(distinct ${schema.competencyProgress.userId}) filter (where ${schema.competencyProgress.status} = 'en_riesgo')::int`,
+        })
+        .from(schema.competencyProgress)
+        .innerJoin(schema.users, eq(schema.users.id, schema.competencyProgress.userId))
+        .where(sql`${schema.users.cohortYear} is not null`)
+        .groupBy(schema.users.cohortYear),
+    ]);
+
+    const progressByCohort = new Map(progress.map((r) => [Number(r.cohortYear), r]));
+    const masteryByCohort = new Map(mastery.map((r) => [Number(r.cohortYear), r]));
+
+    return counts
+      .map((c) => {
+        const year = Number(c.cohortYear);
+        const p = progressByCohort.get(year);
+        const m = masteryByCohort.get(year);
+        return {
+          cohortYear: year,
+          studentCount: Number(c.students ?? 0),
+          avgProgress: Math.round(Number(p?.avgProgress ?? 0) * 100) / 100,
+          // mastery 0..1 → porcentaje 0..100 para lectura uniforme con progreso.
+          avgMastery: Math.round(Number(m?.avgMastery ?? 0) * 100 * 100) / 100,
+          atRiskStudents: Number(m?.atRisk ?? 0),
+        };
+      })
+      .sort((a, b) => a.cohortYear - b.cohortYear);
+  }
+
+  /**
+   * Salud del banco de ítems: cobertura de calibración del modelo TRI. Distingue
+   * ítems calibrados empíricamente (canónico), con semilla de IA (cold-start) y
+   * sin calibrar. Devuelve un resumen global y un desglose por curso.
+   */
+  async getItemBankHealth(): Promise<{
+    totalItems: number;
+    empiricalItems: number;
+    aiPriorItems: number;
+    uncalibratedItems: number;
+    byCourse: Array<{
+      courseId: string;
+      courseTitle: string;
+      totalItems: number;
+      empiricalItems: number;
+      aiPriorItems: number;
+      uncalibratedItems: number;
+    }>;
+  }> {
+    const empiricalExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.source} = 'empirical')::int`;
+    const aiPriorExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.source} = 'ai_prior')::int`;
+    const uncalibratedExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.id} is null or ${schema.itemIrtParams.source} is null)::int`;
+
+    const [totals, perCourse] = await Promise.all([
+      this.db
+        .select({
+          total: sql<number>`count(*)::int`,
+          empirical: empiricalExpr,
+          aiPrior: aiPriorExpr,
+          uncalibrated: uncalibratedExpr,
+        })
+        .from(schema.evaluationQuestions)
+        .leftJoin(
+          schema.itemIrtParams,
+          eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
+        ),
+      this.db
+        .select({
+          courseId: schema.courses.id,
+          courseTitle: schema.courses.title,
+          total: sql<number>`count(*)::int`,
+          empirical: empiricalExpr,
+          aiPrior: aiPriorExpr,
+          uncalibrated: uncalibratedExpr,
+        })
+        .from(schema.evaluationQuestions)
+        .innerJoin(
+          schema.evaluations,
+          eq(schema.evaluations.id, schema.evaluationQuestions.evaluationId),
+        )
+        .innerJoin(schema.courses, eq(schema.courses.id, schema.evaluations.courseId))
+        .leftJoin(
+          schema.itemIrtParams,
+          eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
+        )
+        .where(sql`${schema.courses.deletedAt} is null`)
+        .groupBy(schema.courses.id, schema.courses.title)
+        .orderBy(desc(sql`count(*)`)),
+    ]);
+
+    const t = totals[0];
+    return {
+      totalItems: Number(t?.total ?? 0),
+      empiricalItems: Number(t?.empirical ?? 0),
+      aiPriorItems: Number(t?.aiPrior ?? 0),
+      uncalibratedItems: Number(t?.uncalibrated ?? 0),
+      byCourse: perCourse.map((c) => ({
+        courseId: c.courseId,
+        courseTitle: c.courseTitle,
+        totalItems: Number(c.total ?? 0),
+        empiricalItems: Number(c.empirical ?? 0),
+        aiPriorItems: Number(c.aiPrior ?? 0),
+        uncalibratedItems: Number(c.uncalibrated ?? 0),
+      })),
+    };
+  }
 }
