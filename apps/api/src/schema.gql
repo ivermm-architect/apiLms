@@ -240,6 +240,14 @@ input ChangePasswordInput {
   newPassword: String!
 }
 
+type CohortReportRowType {
+  atRiskStudents: Int!
+  avgMastery: Float!
+  avgProgress: Float!
+  cohortYear: Int!
+  studentCount: Int!
+}
+
 type CompetencyItemHealthType {
   avgDifficultyB: Float
   calibratedItems: Int!
@@ -591,6 +599,23 @@ type InstructorTopCourseType {
   totalStudents: Int!
 }
 
+type ItemBankCourseHealthType {
+  aiPriorItems: Int!
+  courseId: String!
+  courseTitle: String!
+  empiricalItems: Int!
+  totalItems: Int!
+  uncalibratedItems: Int!
+}
+
+type ItemBankHealthType {
+  aiPriorItems: Int!
+  byCourse: [ItemBankCourseHealthType!]!
+  empiricalItems: Int!
+  totalItems: Int!
+  uncalibratedItems: Int!
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -608,6 +633,33 @@ type LessonType {
   sectionId: String!
   slug: String!
   title: String!
+}
+
+type LeveledOptionType {
+  id: String!
+  text: String!
+}
+
+type LeveledQuestionType {
+  id: String!
+  options: [LeveledOptionType!]
+  questionText: String!
+  questionType: String!
+}
+
+type LeveledRecommendationType {
+  claseId: String
+  reason: String!
+  type: String!
+}
+
+type LeveledStepType {
+  attemptId: String!
+  finished: Boolean!
+  isPassed: Boolean
+  nextQuestion: LeveledQuestionType
+  recommendation: LeveledRecommendationType
+  score: Int
 }
 
 input ListCoursesInput {
@@ -696,8 +748,10 @@ type Mutation {
   startAdaptiveExam(enrollmentId: String!, evaluationId: String!): AdaptiveStepType!
   startDiagnostic(courseId: String!, enrollmentId: String!): AdaptiveStepType!
   startEvaluation(enrollmentId: String!, evaluationId: String!): EvaluationAttemptType!
+  startLeveledExam(enrollmentId: String!, evaluationId: String!): LeveledStepType!
   submitAdaptiveAnswer(answer: String!, attemptId: String!, questionId: String!): AdaptiveStepType!
   submitEvaluation(input: SubmitEvaluationInput!): EvaluationAttemptType!
+  submitLeveledAnswer(answer: String!, attemptId: String!, questionId: String!): LeveledStepType!
   trackLessonView(input: TrackLessonViewInput!): TrackLessonViewResultType!
   unlinkLessonCompetency(competencyId: String!, lessonId: String!): Boolean!
   unlinkQuestionCompetency(competencyId: String!, questionId: String!): Boolean!
@@ -743,6 +797,7 @@ type Query {
   alerts(courseId: String): [AlertType!]!
   allSchedules: [CourseScheduleType!]!
   auditLogs(entityType: String, userId: String): [AuditLogType!]!
+  cohortReport: [CohortReportRowType!]!
   course(slug: String!): CourseType!
   courseCompetencies(courseId: String!): [CompetencyType!]!
   courseCompetencyMastery(cohortYear: Int, courseId: String!): [CourseCompetencyMasteryType!]!
@@ -761,6 +816,7 @@ type Query {
   instructorAnalytics: InstructorAnalyticsType!
   instructorAtRiskStudents: [InstructorAtRiskStudentType!]!
   instructorDashboardStats(cohortYear: Int): InstructorDashboardStatsType!
+  itemBankHealth: ItemBankHealthType!
   lessonCompetencies(lessonId: String!): [CompetencyType!]!
   mallas: [MallaType!]!
   me: AuthUserType!
@@ -770,6 +826,8 @@ type Query {
   myEvaluationAttempts(evaluationId: String!): [EvaluationAttemptType!]!
   myGrades(courseId: String): [GradeType!]!
   myInstructorCourses(status: String): [InstructorCourseType!]!
+  myLeveledRecommendations: [RecommendationAiType!]!
+  myRecommendations(limit: Int): [RecommendedCourseType!]!
   mySchedule: [CourseScheduleType!]!
   mySessions: [SessionType!]!
   publicBranding: PublicBrandingType
@@ -787,6 +845,31 @@ input QuestionOptionInput {
   id: String!
   isCorrect: Boolean!
   text: String!
+}
+
+type RecommendationAiType {
+  claseId: String
+  courseId: String!
+  createdAt: DateTime!
+  id: String!
+  reason: String!
+  recommendationType: String!
+  sourceAi: String!
+  status: String
+  userId: String!
+}
+
+type RecommendedCourseType {
+  courseId: String!
+  coverUrl: String
+  level: String!
+  matchedCompetencies: [String!]!
+  reason: String!
+  relevance: Float!
+  slug: String!
+  subtitle: String
+  title: String!
+  totalStudents: Int!
 }
 
 input RefreshInput {

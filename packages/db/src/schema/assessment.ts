@@ -118,6 +118,19 @@ export const evaluationAttempts = pgTable(
     maxScore: numeric('max_score', { precision: 5, scale: 2 }),
     percentage: numeric('percentage', { precision: 5, scale: 2 }),
     isPassed: boolean('is_passed').notNull().default(false),
+    // Snapshot de respuestas del flujo "leveled" (escalera easy/medium/hard).
+    // El flujo clásico e IRT NO lo usan (queda null): es aditivo y no los rompe.
+    answers: jsonb('answers').$type<
+      Array<{
+        questionId: string;
+        answer: string;
+        isCorrect: boolean;
+        difficulty: 'easy' | 'medium' | 'hard';
+      }>
+    >(),
+    // Estado del intento leveled: 'in_progress' | 'submitted'. El flujo clásico
+    // sigue usando submittedAt; este campo queda con su default y no lo altera.
+    status: varchar('status', { length: 20 }).notNull().default('in_progress'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     timeSpentSeconds: integer('time_spent_seconds'),

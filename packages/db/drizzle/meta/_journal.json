@@ -92,6 +92,13 @@
       "when": 1785882203886,
       "tag": "20260804222323_petite_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787338434915,
+      "tag": "20260821185354_luxuriant_whiplash",
+      "breakpoints": true
     }
   ]
 }

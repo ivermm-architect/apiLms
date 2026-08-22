@@ -4,6 +4,14 @@ import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
 import { DATABASE } from '../../../core/database/database.module';
 
+/** Entrada del snapshot de respuestas del flujo leveled. */
+export interface LeveledAnswer {
+  questionId: string;
+  answer: string;
+  isCorrect: boolean;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
 @Injectable()
 export class DrizzleEvaluationRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
@@ -363,6 +371,103 @@ export class DrizzleEvaluationRepository {
       .where(eq(schema.evaluationAttempts.id, attemptId))
       .returning();
     return updated!;
+  }
+
+  // ---------- Leveled (escalera easy/medium/hard) ----------
+
+  /** Intento por id (con `answers` + `status` del flujo leveled). */
+  async getAttempt(attemptId: string) {
+    const [row] = await this.db
+      .select()
+      .from(schema.evaluationAttempts)
+      .where(eq(schema.evaluationAttempts.id, attemptId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /** Crea un intento leveled (status='in_progress', answers=[]). */
+  async createLeveledAttempt(input: {
+    evaluationId: string;
+    studentId: string;
+    enrollmentId: string;
+    attemptNumber: number;
+  }) {
+    const [row] = await this.db
+      .insert(schema.evaluationAttempts)
+      .values({ ...input, answers: [], status: 'in_progress' })
+      .returning();
+    return row!;
+  }
+
+  /** Persiste el snapshot de respuestas de un intento leveled en curso. */
+  async saveLeveledProgress(attemptId: string, answers: LeveledAnswer[]) {
+    await this.db
+      .update(schema.evaluationAttempts)
+      .set({ answers, updatedAt: new Date() })
+      .where(eq(schema.evaluationAttempts.id, attemptId));
+  }
+
+  /** Cierra un intento leveled: fija score/percentage/isPassed y status='submitted'. */
+  async closeLeveledAttempt(input: {
+    attemptId: string;
+    correct: number;
+    total: number;
+    percentage: number;
+    isPassed: boolean;
+    answers: LeveledAnswer[];
+  }) {
+    const [row] = await this.db
+      .update(schema.evaluationAttempts)
+      .set({
+        answers: input.answers,
+        score: String(input.correct),
+        maxScore: String(input.total),
+        percentage: String(input.percentage),
+        isPassed: input.isPassed,
+        status: 'submitted',
+        submittedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.evaluationAttempts.id, input.attemptId))
+      .returning();
+    return row!;
+  }
+
+  /** Inserta la recomendación personalizada (source_ai siempre 'openai-compatible'). */
+  async insertRecommendation(input: {
+    userId: string;
+    courseId: string;
+    claseId?: string | null;
+    recommendationType: 'refuerzo' | 'avance';
+    reason: string;
+    sourceAi?: string;
+  }) {
+    const [row] = await this.db
+      .insert(schema.recommendationAi)
+      .values({
+        userId: input.userId,
+        courseId: input.courseId,
+        claseId: input.claseId ?? null,
+        recommendationType: input.recommendationType,
+        reason: input.reason,
+        sourceAi: input.sourceAi ?? 'openai-compatible',
+      })
+      .returning();
+    return row!;
+  }
+
+  /** Recomendaciones de un usuario (para su propia bandeja). */
+  async listRecommendationsByUser(userId: string) {
+    return this.db
+      .select()
+      .from(schema.recommendationAi)
+      .where(eq(schema.recommendationAi.userId, userId))
+      .orderBy(desc(schema.recommendationAi.createdAt));
+  }
+
+  /** Corrección de una respuesta (reutiliza la lógica canónica de autocalificación). */
+  isCorrect(q: typeof schema.evaluationQuestions.$inferSelect, answer: string): boolean {
+    return this.isAnswerCorrect(q, answer);
   }
 
   private isAnswerCorrect(

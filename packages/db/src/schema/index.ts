@@ -7,6 +7,7 @@ export * from './curriculum';
 export * from './catalog';
 export * from './enrollment';
 export * from './assessment';
+export * from './recommendation';
 export * from './analytics';
 export * from './admin';
 export * from './competency';
