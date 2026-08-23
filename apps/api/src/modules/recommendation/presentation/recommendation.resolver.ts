@@ -5,9 +5,14 @@ import { Args, Int, Query, Resolver } from '@nestjs/graphql';
 
 import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
+import {
+  GetLearningReportQuery,
+  LearningReportResult,
+} from '../application/get-learning-report.query';
 import { GetRecommendationsQuery } from '../application/get-recommendations.query';
 import { RankedRecommendation } from '../domain/recommendation';
 
+import { LearningReportType } from './dto/learning-report.types';
 import { RecommendedCourseType } from './dto/recommendation.types';
 
 @UseGuards(JwtAuthGuard)
@@ -25,5 +30,17 @@ export class RecommendationResolver {
       new GetRecommendationsQuery(user.sub, limit ?? 6),
     );
     return result;
+  }
+
+  /**
+   * Informe de aprendizaje del estudiante redactado por IA (tesis §2.9). Si la
+   * IA está deshabilitada, falla o no hay datos, devuelve `generated=false` y la
+   * UI oculta el informe (degradación elegante).
+   */
+  @Query(() => LearningReportType)
+  async myLearningReport(@CurrentUser() user: JwtPayload): Promise<LearningReportResult> {
+    return this.queryBus.execute<GetLearningReportQuery, LearningReportResult>(
+      new GetLearningReportQuery(user.sub),
+    );
   }
 }
