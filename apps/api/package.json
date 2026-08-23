@@ -12,8 +12,6 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:cov": "vitest run --coverage",
-    "bench": "vitest bench --run",
-    "simulate": "node -r @swc-node/register src/modules/assessment/domain/adaptive/simulation/run.ts",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit"

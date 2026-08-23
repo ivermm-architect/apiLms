@@ -3,8 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { ExplainItem, RecommenderExplainerPort } from '../domain/ports/recommender-explainer.port';
 
-// Mismo timeout por defecto que el adaptador de priors IRT: la inferencia local
-// (Ollama) puede tardar decenas de segundos en la 1.ª llamada.
+// La inferencia local (Ollama) puede tardar decenas de segundos en la 1.ª llamada.
 const DEFAULT_TIMEOUT_MS = 30000;
 // Límite defensivo de longitud por justificación reescrita.
 const MAX_REASON_LEN = 240;

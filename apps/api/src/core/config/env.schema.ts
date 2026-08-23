@@ -32,10 +32,10 @@ export const ConfigSchema = z
     // Sentry
     SENTRY_DSN: z.string().optional(),
 
-    // IA — Inicialización asistida de parámetros IRT (cold-start), OPCIONAL.
-    // Con AI_CALIBRATION_ENABLED=false el sistema se comporta EXACTAMENTE como hoy.
-    // API compatible con OpenAI (sirve para Ollama local y OpenAI sin cambiar código).
-    AI_CALIBRATION_ENABLED: z.coerce.boolean().default(false),
+    // IA — Conexión al proveedor de modelos (API compatible con OpenAI; sirve
+    // para Ollama local y OpenAI sin cambiar código). Compartida por todas las
+    // funciones de IA (recomendación, sugerencia de preguntas, retroalimentación
+    // e informe de aprendizaje), cada una con su propio flag de activación.
     AI_BASE_URL: z.string().default('http://localhost:11434/v1'),
     AI_API_KEY: z.string().default('ollama'),
     AI_MODEL: z.string().default('llama3.2:3b'),

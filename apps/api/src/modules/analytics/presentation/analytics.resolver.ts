@@ -14,7 +14,6 @@ import {
   AdminDashboardOverviewType,
   AlertType,
   CohortReportRowType,
-  ItemBankHealthType,
   StudentReportType,
 } from './dto/analytics.types';
 
@@ -87,12 +86,5 @@ export class AnalyticsResolver {
   @RequirePermissions(PERMISSIONS.ANALYTICS_ADMIN)
   cohortReport(): Promise<CohortReportRowType[]> {
     return this.repo.getCohortReport();
-  }
-
-  /** Cobertura de calibración TRI del banco de ítems. Docentes y admin. */
-  @Query(() => ItemBankHealthType)
-  @RequirePermissions(PERMISSIONS.ANALYTICS_READ)
-  itemBankHealth(): Promise<ItemBankHealthType> {
-    return this.repo.getItemBankHealth();
   }
 }

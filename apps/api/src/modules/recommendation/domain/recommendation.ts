@@ -13,7 +13,7 @@ export interface WeakCompetency {
   key: string;
   /** Nombre legible de la competencia. */
   name: string;
-  /** Dominio actual 0..1 (menor = más débil). */
+  /** Desempeño actual 0..1 derivado de calificaciones (menor = más débil). */
   mastery: number;
 }
 
@@ -47,7 +47,7 @@ export interface RankedRecommendation {
   reason: string;
 }
 
-/** Umbral de dominio por debajo del cual una competencia se considera débil. */
+/** Umbral de desempeño por debajo del cual una competencia se considera débil. */
 export const WEAK_MASTERY_THRESHOLD = 0.6;
 
 /** Normaliza un texto para emparejar competencias entre cursos distintos. */
@@ -71,7 +71,7 @@ function buildReason(matched: WeakCompetency[]): string {
 
   // La competencia más débil de las emparejadas encabeza el motivo.
   const weakest = matched.reduce((a, b) => (b.mastery < a.mastery ? b : a));
-  const base = `Refuerza tu competencia «${weakest.name}» (dominio actual ${pct(weakest.mastery)}%)`;
+  const base = `Refuerza tu competencia «${weakest.name}» (desempeño actual ${pct(weakest.mastery)}%)`;
   if (matched.length === 1) return base;
   const extra = matched.length - 1;
   return `${base} y ${extra} competencia${extra === 1 ? '' : 's'} más`;

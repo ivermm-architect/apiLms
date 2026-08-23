@@ -8,6 +8,8 @@ import { Field, ObjectType } from '@nestjs/graphql';
 @ObjectType()
 export class LearningReportType {
   @Field(() => Boolean) generated!: boolean;
+  /** true si la IA está redactando el informe en segundo plano (aún sin datos). */
+  @Field(() => Boolean) pending!: boolean;
   @Field(() => String, { nullable: true }) summary?: string | null;
   @Field(() => [String]) strengths!: string[];
   @Field(() => [String]) weaknesses!: string[];

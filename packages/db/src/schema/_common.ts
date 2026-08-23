@@ -26,22 +26,9 @@ export const enrollmentStatusEnum = pgEnum('enrollment_status', [
   'expired',
 ]);
 
-export const difficultyLevelEnum = pgEnum('difficulty_level', [
-  'easy',
-  'medium',
-  'hard',
-  'adaptive',
-]);
+export const difficultyLevelEnum = pgEnum('difficulty_level', ['easy', 'medium', 'hard']);
 
 export const riskLevelEnum = pgEnum('risk_level', ['low', 'medium', 'high', 'critical']);
-
-// Estado de dominio de una competencia por estudiante (evaluación adaptativa).
-export const masteryStatusEnum = pgEnum('mastery_status', [
-  'no_iniciada',
-  'en_progreso',
-  'en_riesgo',
-  'dominada',
-]);
 
 export const auditActionEnum = pgEnum('audit_action', [
   'create',

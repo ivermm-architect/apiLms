@@ -10,9 +10,9 @@ import * as schema from './schema/index';
 
 /* ─────────────────────────────────────────────────────────────
    CIEBA LMS · Seed de validación de módulos
-   Puebla las tablas que quedaban vacías tras seed + seed-adaptive,
-   con datos DERIVADOS y coherentes para poder validar de punta a
-   punta los módulos de evaluación, analítica, admin y competencias:
+   Puebla las tablas que quedaban vacías tras seed, con datos
+   DERIVADOS y coherentes para poder validar de punta a punta los
+   módulos de evaluación, analítica, admin y competencias:
 
      Fase A · assessment
        · evaluation_attempts   (intentos por inscripción)
@@ -28,10 +28,10 @@ import * as schema from './schema/index';
        · audit_logs            (bitácora retroactiva)
        · lesson_competencies   (mapeo lección ↔ competencia de su sección)
 
-   Coherencia: la probabilidad de acierto y las notas se derivan de la
-   habilidad latente del alumno (competency_progress del seed adaptativo).
+   Coherencia: la probabilidad de acierto y las notas se derivan de una
+   habilidad latente simple del alumno (rasgo estable 0..1).
    Idempotente: reejecutable sin duplicar.
-   Debe correr DESPUÉS de: pnpm seed && pnpm seed:adaptive.
+   Debe correr DESPUÉS de: pnpm seed.
    ───────────────────────────────────────────────────────────── */
 
 /* ─── RNG determinista (LCG + Box-Muller) ──────────────────── */
@@ -55,15 +55,12 @@ const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.m
 const now = new Date();
 const daysAgo = (n: number): Date => new Date(now.getTime() - n * 86_400_000);
 
-// Dificultad de la pregunta → parámetro b (TRI): fácil bajo, difícil alto.
-const B_BY_DIFFICULTY: Record<string, number> = { easy: -1, medium: 0, hard: 1, adaptive: 0 };
+// Ajuste de probabilidad por dificultad de la pregunta: fácil sube, difícil baja.
+const DIFF_ADJUST: Record<string, number> = { easy: 0.15, medium: 0, hard: -0.15 };
 
-// P(acierto) 2PL a partir de la habilidad del alumno y la dificultad del ítem.
+// P(acierto) simple: habilidad del alumno ajustada por la dificultad del ítem.
 function pCorrect(ability: number, difficulty: string): number {
-  const theta = (ability - 0.5) * 4; // ability∈[0,1] → θ≈[-2,2]
-  const b = B_BY_DIFFICULTY[difficulty] ?? 0;
-  const a = 1.2;
-  const p = 1 / (1 + Math.exp(-a * (theta - b)));
+  const p = ability + (DIFF_ADJUST[difficulty] ?? 0);
   return clamp(p, 0.05, 0.95);
 }
 
@@ -103,7 +100,6 @@ async function main(): Promise<void> {
   const evaluations = await db.select().from(schema.evaluations);
   const questions = await db.select().from(schema.evaluationQuestions);
   const competencies = await db.select().from(schema.competencies);
-  const compProgress = await db.select().from(schema.competencyProgress);
 
   const courseById = new Map(courses.map((c) => [c.id, c]));
 
@@ -114,55 +110,21 @@ async function main(): Promise<void> {
     evalsByCourse.set(e.courseId, arr);
   }
 
-  // Solo preguntas "reales" del quiz (excluye el banco flagship 'adaptive').
-  const realQuestionsByEval = new Map<string, typeof questions>();
+  const questionsByEval = new Map<string, typeof questions>();
   for (const q of questions) {
-    if (q.difficulty === 'adaptive') continue;
-    const arr = realQuestionsByEval.get(q.evaluationId) ?? [];
+    const arr = questionsByEval.get(q.evaluationId) ?? [];
     arr.push(q);
-    realQuestionsByEval.set(q.evaluationId, arr);
+    questionsByEval.set(q.evaluationId, arr);
   }
 
-  const compsByCourse = new Map<string, typeof competencies>();
-  for (const c of competencies) {
-    const arr = compsByCourse.get(c.courseId) ?? [];
-    arr.push(c);
-    compsByCourse.set(c.courseId, arr);
-  }
-
-  // Habilidad latente del alumno por curso: media de mastery en las
-  // competencias del curso; fallback a su media global; fallback gaussiano.
-  const masteryByUserComp = new Map<string, number>();
-  const masteryByUser = new Map<string, number[]>();
-  for (const cp of compProgress) {
-    const m = Number(cp.mastery);
-    masteryByUserComp.set(`${cp.userId}:${cp.competencyId}`, m);
-    const arr = masteryByUser.get(cp.userId) ?? [];
-    arr.push(m);
-    masteryByUser.set(cp.userId, arr);
-  }
+  // Habilidad latente del alumno (rasgo estable 0..1): determinista y cacheada
+  // por usuario, para que un mismo estudiante rinda de forma coherente.
   const abilityCache = new Map<string, number>();
-  function abilityFor(userId: string, courseId: string): number {
-    const key = `${userId}:${courseId}`;
-    const cached = abilityCache.get(key);
+  function abilityFor(userId: string): number {
+    const cached = abilityCache.get(userId);
     if (cached != null) return cached;
-    const comps = compsByCourse.get(courseId) ?? [];
-    const present: number[] = [];
-    for (const c of comps) {
-      const m = masteryByUserComp.get(`${userId}:${c.id}`);
-      if (m != null) present.push(m);
-    }
-    let ability: number;
-    if (present.length > 0) {
-      ability = present.reduce((s, x) => s + x, 0) / present.length;
-    } else {
-      const glob = masteryByUser.get(userId);
-      ability = glob
-        ? glob.reduce((s, x) => s + x, 0) / glob.length
-        : clamp(gaussian(0.6, 0.18), 0.05, 0.95);
-    }
-    ability = clamp(ability, 0.05, 0.98);
-    abilityCache.set(key, ability);
+    const ability = clamp(gaussian(0.6, 0.18), 0.05, 0.98);
+    abilityCache.set(userId, ability);
     return ability;
   }
 
@@ -196,13 +158,13 @@ async function main(): Promise<void> {
   for (const en of enrollments) {
     const course = courseById.get(en.courseId);
     if (!course) continue;
-    const ability = abilityFor(en.userId, en.courseId);
+    const ability = abilityFor(en.userId);
     const evals = evalsByCourse.get(en.courseId) ?? [];
 
     /* ── Intentos + respuestas ── */
     for (const ev of evals) {
       if (attemptSeen.has(`${en.userId}:${ev.id}`)) continue;
-      const qs = (realQuestionsByEval.get(ev.id) ?? []).sort((a, b) => a.position - b.position);
+      const qs = (questionsByEval.get(ev.id) ?? []).sort((a, b) => a.position - b.position);
       if (qs.length === 0) continue;
 
       const passing = Number(ev.passingScore);
@@ -447,16 +409,6 @@ async function main(): Promise<void> {
       value: 365,
       description: 'Vigencia por defecto de una inscripción.',
     },
-    {
-      key: 'adaptive.cat',
-      value: { minItems: 5, maxItems: 15, seTarget: 0.3 },
-      description: 'Parámetros del test adaptativo (CAT).',
-    },
-    {
-      key: 'adaptive.bkt',
-      value: { pTransit: 0.2, pSlip: 0.1, pGuess: 0.2 },
-      description: 'Parámetros por defecto de Bayesian Knowledge Tracing.',
-    },
   ];
   await db.insert(schema.systemConfig).values(configRows).onConflictDoNothing();
 
@@ -501,7 +453,7 @@ async function main(): Promise<void> {
 
   /* ── lesson_competencies: mapea cada lección a la competencia de su sección ── */
   const sectionById = new Map(sections.map((s) => [s.id, s]));
-  // Índice (courseId, name) → competencia. En seed-adaptive name = título de sección.
+  // Índice (courseId, name) → competencia (name = título de sección).
   const compByCourseName = new Map<string, string>();
   for (const c of competencies) compByCourseName.set(`${c.courseId}:${c.name}`, c.id);
 

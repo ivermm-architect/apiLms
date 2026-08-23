@@ -42,8 +42,8 @@ export class CreateEvaluationInput {
   @Field(() => String, { nullable: true }) @IsOptional() @IsString() description?: string;
   @Field(() => String, { nullable: true })
   @IsOptional()
-  @IsEnum(['easy', 'medium', 'hard', 'adaptive'])
-  difficulty?: 'easy' | 'medium' | 'hard' | 'adaptive';
+  @IsEnum(['easy', 'medium', 'hard'])
+  difficulty?: 'easy' | 'medium' | 'hard';
   @Field(() => Int, { nullable: true }) @IsOptional() @IsInt() @Min(1) timeLimitMinutes?: number;
   @Field(() => Number, { nullable: true })
   @IsOptional()

@@ -7,6 +7,7 @@ import { GetLearningReportHandler } from './application/get-learning-report.quer
 import { GetRecommendationsHandler } from './application/get-recommendations.query';
 import { LEARNING_REPORT_NARRATOR } from './domain/ports/learning-report-narrator.port';
 import { RECOMMENDER_EXPLAINER } from './domain/ports/recommender-explainer.port';
+import { AiCacheService } from './infrastructure/ai-cache.service';
 import { DrizzleLearningReportRepository } from './infrastructure/drizzle-learning-report.repository';
 import { DrizzleRecommendationRepository } from './infrastructure/drizzle-recommendation.repository';
 import { LlmLearningReportAdapter } from './infrastructure/llm-learning-report.adapter';
@@ -25,6 +26,9 @@ import { RecommendationResolver } from './presentation/recommendation.resolver';
 @Module({
   imports: [CqrsModule, AuthModule],
   providers: [
+    // Caché en memoria compartido por ambos handlers de IA (singleton Nest):
+    // sirve al instante y regenera en segundo plano (no bloquea la petición).
+    AiCacheService,
     DrizzleRecommendationRepository,
     GetRecommendationsHandler,
     RecommendationResolver,

@@ -37,7 +37,7 @@ export const PERMISSIONS = {
   COURSE_MODERATE: 'course:moderate',
   /** competency.resolver — CRUD de competencias y outcomes. */
   COMPETENCY_MANAGE: 'competency:manage',
-  /** assessment.resolver + adaptive.resolver — quizzes, preguntas, config adaptativa, calificación. */
+  /** assessment.resolver — evaluaciones, preguntas (dificultad fácil/medio/difícil) y calificación. */
   EVALUATION_MANAGE: 'evaluation:manage',
   /** analytics.resolver — alerts, acknowledgeAlert (docente gestiona alertas de sus estudiantes). */
   ANALYTICS_READ: 'analytics:read',

@@ -309,8 +309,7 @@ export class AssessmentResolver {
     })) as PendingOpenAnswerType[];
   }
 
-  /** Califica una respuesta abierta, recalcula el score del intento y propaga
-   *  el juicio del docente al motor de competencias (BKT, umbral 50%). Acepta
+  /** Califica una respuesta abierta y recalcula el score del intento. Acepta
    *  retroalimentación opcional que se guarda con la respuesta. */
   @Mutation(() => EvaluationAttemptType)
   @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)

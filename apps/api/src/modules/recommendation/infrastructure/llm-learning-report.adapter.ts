@@ -12,8 +12,8 @@ import {
 const DEFAULT_TIMEOUT_MS = 30000;
 // Límites defensivos de longitud.
 const MAX_SUMMARY_LEN = 600;
-const MAX_ITEM_LEN = 240;
-const MAX_ITEMS = 5;
+const MAX_ITEM_LEN = 200;
+const MAX_ITEMS = 6;
 
 /**
  * Adaptador del INFORME DE APRENDIZAJE asistido por IA (tesis §2.9), contra una
@@ -141,11 +141,41 @@ export class LlmLearningReportAdapter implements LearningReportNarratorPort {
     const out: string[] = [];
     for (const item of value) {
       if (typeof item !== 'string') continue;
-      const trimmed = item.trim();
-      if (trimmed.length === 0) continue;
-      out.push(trimmed.slice(0, MAX_ITEM_LEN));
-      if (out.length >= MAX_ITEMS) break;
+      for (const piece of this.splitItem(item)) {
+        const clean = this.truncateAtWord(piece, MAX_ITEM_LEN);
+        if (clean.length === 0) continue;
+        out.push(clean);
+        if (out.length >= MAX_ITEMS) return out;
+      }
     }
     return out;
+  }
+
+  /**
+   * El modelo local a veces devuelve varios cursos/ideas concatenados en un
+   * único elemento del array (ej. "Curso A (67%), Curso B (68%); Curso C ..."),
+   * lo que producía viñetas kilométricas cortadas a media palabra. Aquí lo
+   * separamos de forma DETERMINISTA en viñetas independientes: por salto de
+   * línea, por punto y coma, por viñeta explícita, y por cierre de paréntesis
+   * seguido de coma (patrón típico "…(NN%), …").
+   */
+  private splitItem(raw: string): string[] {
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    if (normalized.length === 0) return [];
+    const parts = normalized
+      .split(/(?<=\))\s*,\s+|\s*[;•]\s+|\s*\n+\s*/)
+      .map((p) => p.replace(/^[\s,;•·-]+/, '').trim())
+      .filter((p) => p.length > 0);
+    return parts.length > 0 ? parts : [normalized];
+  }
+
+  /** Trunca en la última palabra completa (nunca a media palabra) y añade «…». */
+  private truncateAtWord(value: string, max: number): string {
+    const s = value.trim();
+    if (s.length <= max) return s;
+    const cut = s.slice(0, max);
+    const lastSpace = cut.lastIndexOf(' ');
+    const base = lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut;
+    return `${base.replace(/[\s,;.:·-]+$/, '')}…`;
   }
 }

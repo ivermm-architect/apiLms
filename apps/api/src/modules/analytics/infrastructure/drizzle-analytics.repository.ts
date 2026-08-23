@@ -218,24 +218,21 @@ export class DrizzleAnalyticsRepository {
         .from(schema.users)
         .orderBy(desc(schema.users.createdAt))
         .limit(8),
-      // Cursos con riesgo sistémico: mayor % de alumnos distintos con ≥1 competencia
-      // en riesgo. Es un indicador de RECURSOS (¿docente sobrecargado? ¿malla?), no
-      // de seguimiento nominal — eso vive en el dashboard docente.
+      // Cursos con riesgo sistémico: mayor % de alumnos distintos con progreso
+      // bajo (< 40% de lecciones completadas). Es un indicador de RECURSOS
+      // (¿docente sobrecargado? ¿malla?), no de seguimiento nominal — eso vive en
+      // el dashboard docente.
       this.db
         .select({
           id: schema.courses.id,
           title: schema.courses.title,
           instructorFirstName: schema.users.firstName,
           instructorLastName: schema.users.lastName,
-          atRisk: sql<number>`count(distinct ${schema.competencyProgress.userId}) filter (where ${schema.competencyProgress.status} = 'en_riesgo')::int`,
-          tracked: sql<number>`count(distinct ${schema.competencyProgress.userId})::int`,
+          atRisk: sql<number>`count(distinct ${schema.enrollments.userId}) filter (where ${schema.enrollments.progressPercentage}::numeric < 40)::int`,
+          tracked: sql<number>`count(distinct ${schema.enrollments.userId})::int`,
         })
         .from(schema.courses)
-        .innerJoin(schema.competencies, eq(schema.competencies.courseId, schema.courses.id))
-        .innerJoin(
-          schema.competencyProgress,
-          eq(schema.competencyProgress.competencyId, schema.competencies.id),
-        )
+        .innerJoin(schema.enrollments, eq(schema.enrollments.courseId, schema.courses.id))
         .leftJoin(schema.users, eq(schema.users.id, schema.courses.instructorId))
         .where(sql`${schema.courses.deletedAt} is null`)
         .groupBy(
@@ -245,10 +242,10 @@ export class DrizzleAnalyticsRepository {
           schema.users.lastName,
         )
         .having(
-          sql`count(distinct ${schema.competencyProgress.userId}) filter (where ${schema.competencyProgress.status} = 'en_riesgo') > 0`,
+          sql`count(distinct ${schema.enrollments.userId}) filter (where ${schema.enrollments.progressPercentage}::numeric < 40) > 0`,
         )
         .orderBy(
-          sql`count(distinct ${schema.competencyProgress.userId}) filter (where ${schema.competencyProgress.status} = 'en_riesgo')::float / nullif(count(distinct ${schema.competencyProgress.userId}), 0) desc`,
+          sql`count(distinct ${schema.enrollments.userId}) filter (where ${schema.enrollments.progressPercentage}::numeric < 40)::float / nullif(count(distinct ${schema.enrollments.userId}), 0) desc`,
         )
         .limit(5),
     ]);
@@ -337,11 +334,11 @@ export class DrizzleAnalyticsRepository {
       cohortYear: number;
       studentCount: number;
       avgProgress: number;
-      avgMastery: number;
+      avgScore: number;
       atRiskStudents: number;
     }>
   > {
-    const [counts, progress, mastery] = await Promise.all([
+    const [counts, progress, grades] = await Promise.all([
       // Alumnos por cohorte (cohortYear no nulo = estudiante, no borrado).
       this.db
         .select({
@@ -353,123 +350,45 @@ export class DrizzleAnalyticsRepository {
           and(sql`${schema.users.cohortYear} is not null`, sql`${schema.users.deletedAt} is null`),
         )
         .groupBy(schema.users.cohortYear),
-      // Progreso medio de matrícula por cohorte.
+      // Progreso medio de matrícula y alumnos en riesgo (progreso < 40%) por cohorte.
       this.db
         .select({
           cohortYear: schema.users.cohortYear,
           avgProgress: sql<string>`avg(${schema.enrollments.progressPercentage}::numeric)`,
+          atRisk: sql<number>`count(distinct ${schema.enrollments.userId}) filter (where ${schema.enrollments.progressPercentage}::numeric < 40)::int`,
         })
         .from(schema.enrollments)
         .innerJoin(schema.users, eq(schema.users.id, schema.enrollments.userId))
         .where(sql`${schema.users.cohortYear} is not null`)
         .groupBy(schema.users.cohortYear),
-      // Dominio medio y alumnos en riesgo por cohorte.
+      // Nota media (0..100) por cohorte, a partir de las calificaciones.
       this.db
         .select({
           cohortYear: schema.users.cohortYear,
-          avgMastery: sql<string>`avg(${schema.competencyProgress.mastery}::numeric)`,
-          atRisk: sql<number>`count(distinct ${schema.competencyProgress.userId}) filter (where ${schema.competencyProgress.status} = 'en_riesgo')::int`,
+          avgScore: sql<string>`avg(${schema.grades.score}::numeric / ${schema.grades.maxScore}::numeric * 100)`,
         })
-        .from(schema.competencyProgress)
-        .innerJoin(schema.users, eq(schema.users.id, schema.competencyProgress.userId))
+        .from(schema.grades)
+        .innerJoin(schema.users, eq(schema.users.id, schema.grades.studentId))
         .where(sql`${schema.users.cohortYear} is not null`)
         .groupBy(schema.users.cohortYear),
     ]);
 
     const progressByCohort = new Map(progress.map((r) => [Number(r.cohortYear), r]));
-    const masteryByCohort = new Map(mastery.map((r) => [Number(r.cohortYear), r]));
+    const gradesByCohort = new Map(grades.map((r) => [Number(r.cohortYear), r]));
 
     return counts
       .map((c) => {
         const year = Number(c.cohortYear);
         const p = progressByCohort.get(year);
-        const m = masteryByCohort.get(year);
+        const g = gradesByCohort.get(year);
         return {
           cohortYear: year,
           studentCount: Number(c.students ?? 0),
           avgProgress: Math.round(Number(p?.avgProgress ?? 0) * 100) / 100,
-          // mastery 0..1 → porcentaje 0..100 para lectura uniforme con progreso.
-          avgMastery: Math.round(Number(m?.avgMastery ?? 0) * 100 * 100) / 100,
-          atRiskStudents: Number(m?.atRisk ?? 0),
+          avgScore: Math.round(Number(g?.avgScore ?? 0) * 100) / 100,
+          atRiskStudents: Number(p?.atRisk ?? 0),
         };
       })
       .sort((a, b) => a.cohortYear - b.cohortYear);
-  }
-
-  /**
-   * Salud del banco de ítems: cobertura de calibración del modelo TRI. Distingue
-   * ítems calibrados empíricamente (canónico), con semilla de IA (cold-start) y
-   * sin calibrar. Devuelve un resumen global y un desglose por curso.
-   */
-  async getItemBankHealth(): Promise<{
-    totalItems: number;
-    empiricalItems: number;
-    aiPriorItems: number;
-    uncalibratedItems: number;
-    byCourse: Array<{
-      courseId: string;
-      courseTitle: string;
-      totalItems: number;
-      empiricalItems: number;
-      aiPriorItems: number;
-      uncalibratedItems: number;
-    }>;
-  }> {
-    const empiricalExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.source} = 'empirical')::int`;
-    const aiPriorExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.source} = 'ai_prior')::int`;
-    const uncalibratedExpr = sql<number>`count(*) filter (where ${schema.itemIrtParams.id} is null or ${schema.itemIrtParams.source} is null)::int`;
-
-    const [totals, perCourse] = await Promise.all([
-      this.db
-        .select({
-          total: sql<number>`count(*)::int`,
-          empirical: empiricalExpr,
-          aiPrior: aiPriorExpr,
-          uncalibrated: uncalibratedExpr,
-        })
-        .from(schema.evaluationQuestions)
-        .leftJoin(
-          schema.itemIrtParams,
-          eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
-        ),
-      this.db
-        .select({
-          courseId: schema.courses.id,
-          courseTitle: schema.courses.title,
-          total: sql<number>`count(*)::int`,
-          empirical: empiricalExpr,
-          aiPrior: aiPriorExpr,
-          uncalibrated: uncalibratedExpr,
-        })
-        .from(schema.evaluationQuestions)
-        .innerJoin(
-          schema.evaluations,
-          eq(schema.evaluations.id, schema.evaluationQuestions.evaluationId),
-        )
-        .innerJoin(schema.courses, eq(schema.courses.id, schema.evaluations.courseId))
-        .leftJoin(
-          schema.itemIrtParams,
-          eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
-        )
-        .where(sql`${schema.courses.deletedAt} is null`)
-        .groupBy(schema.courses.id, schema.courses.title)
-        .orderBy(desc(sql`count(*)`)),
-    ]);
-
-    const t = totals[0];
-    return {
-      totalItems: Number(t?.total ?? 0),
-      empiricalItems: Number(t?.empirical ?? 0),
-      aiPriorItems: Number(t?.aiPrior ?? 0),
-      uncalibratedItems: Number(t?.uncalibrated ?? 0),
-      byCourse: perCourse.map((c) => ({
-        courseId: c.courseId,
-        courseTitle: c.courseTitle,
-        totalItems: Number(c.total ?? 0),
-        empiricalItems: Number(c.empirical ?? 0),
-        aiPriorItems: Number(c.aiPrior ?? 0),
-        uncalibratedItems: Number(c.uncalibrated ?? 0),
-      })),
-    };
   }
 }

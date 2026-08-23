@@ -11,4 +11,3 @@ export * from './recommendation';
 export * from './analytics';
 export * from './admin';
 export * from './competency';
-export * from './adaptive';

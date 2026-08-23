@@ -1,6 +1,6 @@
 import { schema, Database } from '@cieba/db';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../../../core/database/database.module';
 import {
@@ -15,34 +15,51 @@ export class DrizzleRecommendationRepository {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   /**
-   * Competencias con bajo dominio (< umbral) del estudiante, en cualquiera de
-   * sus cursos. La clave normalizada permite emparejar la misma competencia
-   * aunque viva en cursos distintos.
+   * Competencias con bajo desempeño (< umbral) del estudiante, derivado de sus
+   * calificaciones: por cada competencia se promedia la fracción de puntos
+   * obtenidos (0..1) en las preguntas evaluadas que la miden. La clave
+   * normalizada permite emparejar la misma competencia aunque viva en cursos
+   * distintos.
    */
   async getWeakCompetencies(userId: string): Promise<WeakCompetency[]> {
     const rows = await this.db
       .select({
         name: schema.competencies.name,
-        code: schema.competencies.code,
-        mastery: schema.competencyProgress.mastery,
+        mastery: sql<string>`avg(${schema.evaluationAnswers.pointsEarned} / nullif(${schema.evaluationQuestions.points}, 0))`,
       })
-      .from(schema.competencyProgress)
+      .from(schema.evaluationAnswers)
+      .innerJoin(
+        schema.evaluationAttempts,
+        eq(schema.evaluationAttempts.id, schema.evaluationAnswers.attemptId),
+      )
+      .innerJoin(
+        schema.evaluationQuestions,
+        eq(schema.evaluationQuestions.id, schema.evaluationAnswers.questionId),
+      )
+      .innerJoin(
+        schema.questionCompetencies,
+        eq(schema.questionCompetencies.questionId, schema.evaluationQuestions.id),
+      )
       .innerJoin(
         schema.competencies,
-        eq(schema.competencies.id, schema.competencyProgress.competencyId),
+        eq(schema.competencies.id, schema.questionCompetencies.competencyId),
       )
       .where(
         and(
-          eq(schema.competencyProgress.userId, userId),
-          lt(schema.competencyProgress.mastery, String(WEAK_MASTERY_THRESHOLD)),
+          eq(schema.evaluationAttempts.studentId, userId),
+          isNotNull(schema.evaluationAttempts.submittedAt),
+          isNotNull(schema.evaluationAnswers.isCorrect),
         ),
-      );
+      )
+      .groupBy(schema.competencies.name);
 
-    return rows.map((r) => ({
-      key: normalizeCompetencyKey(r.name),
-      name: r.name,
-      mastery: Number(r.mastery),
-    }));
+    return rows
+      .map((r) => ({
+        key: normalizeCompetencyKey(r.name),
+        name: r.name,
+        mastery: Number(r.mastery),
+      }))
+      .filter((c) => c.mastery < WEAK_MASTERY_THRESHOLD);
   }
 
   /** Ids de cursos en los que el estudiante ya está inscrito (para excluirlos). */

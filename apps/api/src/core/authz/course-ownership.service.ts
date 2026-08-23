@@ -11,9 +11,9 @@ import { DATABASE } from '../database/database.module';
 
 /**
  * Verificación de propiedad de curso centralizada (RBAC a nivel de recurso).
- * Antes estaba duplicada como método privado `assertCourseOwnership` en 4
- * resolvers (catalog, competency, adaptive, assessment), cada uno con acceso
- * directo a `db` y lanzando `Error` crudo (que el filtro mapeaba a 500).
+ * Antes estaba duplicada como método privado `assertCourseOwnership` en varios
+ * resolvers (catalog, competency, assessment), cada uno con acceso directo a
+ * `db` y lanzando `Error` crudo (que el filtro mapeaba a 500).
  * Aquí lanza excepciones de dominio con statusCode correcto (404 / 403).
  */
 @Injectable()

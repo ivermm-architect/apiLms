@@ -51,16 +51,16 @@ export class AdminRecentSignupType {
   @Field(() => GraphQLISODateTime) createdAt!: Date;
 }
 
-/** Curso con riesgo sistémico: alto % de alumnos con ≥1 competencia en riesgo.
+/** Curso con riesgo sistémico: alto % de alumnos con progreso bajo (< 40%).
  *  Decisión admin (recursos/malla/docente), no intervención nominal (eso es del docente). */
 @ObjectType()
 export class AdminCourseRiskType {
   @Field() id!: string;
   @Field() title!: string;
   @Field() instructorName!: string;
-  /** Alumnos distintos con ≥1 competencia en_riesgo en el curso. */
+  /** Alumnos distintos con progreso bajo (< 40% de lecciones) en el curso. */
   @Field(() => Int) atRiskStudents!: number;
-  /** Alumnos distintos con seguimiento de competencias en el curso. */
+  /** Alumnos distintos matriculados en el curso. */
   @Field(() => Int) trackedStudents!: number;
   /** Proporción en riesgo 0..1 (atRiskStudents / trackedStudents). */
   @Field(() => Float) riskRatio!: number;
@@ -99,32 +99,8 @@ export class CohortReportRowType {
   @Field(() => Int) studentCount!: number;
   /** Progreso medio de matrícula 0..100. */
   @Field(() => Float) avgProgress!: number;
-  /** Dominio medio por competencia 0..100. */
-  @Field(() => Float) avgMastery!: number;
-  /** Estudiantes distintos con ≥1 competencia en riesgo. */
+  /** Nota media de la cohorte 0..100. */
+  @Field(() => Float) avgScore!: number;
+  /** Estudiantes distintos con progreso bajo (< 40% de lecciones). */
   @Field(() => Int) atRiskStudents!: number;
-}
-
-/** Salud de calibración del banco de ítems para un curso. */
-@ObjectType()
-export class ItemBankCourseHealthType {
-  @Field() courseId!: string;
-  @Field() courseTitle!: string;
-  @Field(() => Int) totalItems!: number;
-  /** Calibrados con datos reales (canónico). */
-  @Field(() => Int) empiricalItems!: number;
-  /** Con semilla asistida por IA en cold-start. */
-  @Field(() => Int) aiPriorItems!: number;
-  /** Sin parámetros TRI (pendientes de calibrar). */
-  @Field(() => Int) uncalibratedItems!: number;
-}
-
-/** Cobertura de calibración TRI del banco de ítems (resumen + desglose por curso). */
-@ObjectType()
-export class ItemBankHealthType {
-  @Field(() => Int) totalItems!: number;
-  @Field(() => Int) empiricalItems!: number;
-  @Field(() => Int) aiPriorItems!: number;
-  @Field(() => Int) uncalibratedItems!: number;
-  @Field(() => [ItemBankCourseHealthType]) byCourse!: ItemBankCourseHealthType[];
 }
