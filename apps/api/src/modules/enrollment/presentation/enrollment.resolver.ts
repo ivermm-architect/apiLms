@@ -4,10 +4,10 @@ import { JwtPayload, PERMISSIONS } from '@cieba/shared';
 import { Inject, UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
-import { EnrollmentAlreadyExistsException } from '../../../shared/exceptions/domain.exception';
 import { DATABASE } from '../../../core/database/database.module';
+import { EnrollmentAlreadyExistsException } from '../../../shared/exceptions/domain.exception';
 import { DrizzleAuditRepository } from '../../admin/infrastructure/drizzle-audit.repository';
 import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator';
 import { RequirePermissions } from '../../auth/infrastructure/decorators/require-permissions.decorator';
@@ -157,12 +157,7 @@ export class EnrollmentResolver {
     @CurrentUser() user: JwtPayload,
   ): Promise<TrackLessonViewResult> {
     return this.commandBus.execute(
-      new TrackLessonViewCommand(
-        user.sub,
-        input.enrollmentId,
-        input.lessonId,
-        input.isCompleted,
-      ),
+      new TrackLessonViewCommand(user.sub, input.enrollmentId, input.lessonId, input.isCompleted),
     );
   }
 
@@ -201,6 +196,13 @@ export class EnrollmentResolver {
         totalLessons: schema.enrollments.totalLessons,
         enrolledAt: schema.enrollments.enrolledAt,
         completedAt: schema.enrollments.completedAt,
+        // Promedio de calificaciones (0–100) del estudiante en este curso; null si
+        // aún no tiene notas. Se calcula en SQL a partir de score/max_score.
+        avgGrade: sql<string | null>`(
+          select avg(g.score / nullif(g.max_score, 0) * 100)
+          from grades g
+          where g.student_id = ${schema.enrollments.userId} and g.course_id = ${courseId}
+        )`,
       })
       .from(schema.enrollments)
       .innerJoin(schema.users, eq(schema.users.id, schema.enrollments.userId))
@@ -210,6 +212,7 @@ export class EnrollmentResolver {
       ...r,
       avatarUrl: r.avatarUrl ?? null,
       completedAt: r.completedAt ?? null,
+      avgGrade: r.avgGrade != null ? Math.round(Number(r.avgGrade)) : null,
     }));
   }
 }

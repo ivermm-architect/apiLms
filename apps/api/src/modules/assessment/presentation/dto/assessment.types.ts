@@ -79,3 +79,27 @@ export class PendingOpenAnswerType {
   @Field() courseId!: string;
   @Field(() => GraphQLISODateTime, { nullable: true }) submittedAt?: Date | null;
 }
+
+/** Opción propuesta por la IA para una pregunta (borrador, sin persistir). */
+@ObjectType()
+export class SuggestedOptionType {
+  @Field() id!: string;
+  @Field() text!: string;
+  @Field() isCorrect!: boolean;
+}
+
+/**
+ * Pregunta PROPUESTA por la IA para que el docente la revise/edite antes de
+ * crearla. No se persiste ni se publica automáticamente.
+ */
+@ObjectType()
+export class SuggestedQuestionType {
+  @Field() questionText!: string;
+  @Field() questionType!: string;
+  @Field(() => [SuggestedOptionType]) options!: SuggestedOptionType[];
+  @Field(() => String, { nullable: true }) correctAnswer?: string | null;
+  @Field(() => String, { nullable: true }) explanation?: string | null;
+  @Field() difficulty!: string;
+  /** Justificación en lenguaje natural de la propuesta. */
+  @Field() justification!: string;
+}

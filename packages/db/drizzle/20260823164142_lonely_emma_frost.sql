@@ -1,0 +1,1 @@
+ALTER TABLE "evaluation_answers" ADD COLUMN "feedback" text;

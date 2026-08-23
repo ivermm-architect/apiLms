@@ -1,4 +1,4 @@
-import { Field, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
 import { GraphQLISODateTime } from '@nestjs/graphql';
 
 @ObjectType()
@@ -64,4 +64,6 @@ export class CourseStudentType {
   @Field(() => Int) totalLessons!: number;
   @Field(() => GraphQLISODateTime) enrolledAt!: Date;
   @Field(() => GraphQLISODateTime, { nullable: true }) completedAt?: Date | null;
+  /** Promedio de calificaciones 0–100 del estudiante en el curso; null si no tiene notas. */
+  @Field(() => Float, { nullable: true }) avgGrade?: number | null;
 }

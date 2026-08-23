@@ -129,27 +129,13 @@ export class InstructorCourseType {
   @Field(() => Int) pendingGradesCount!: number;
 }
 
-/** Competencia con menor dominio medio del plantel del docente. */
-@ObjectType()
-export class WeakestCompetencyType {
-  @Field() code!: string;
-  @Field() name!: string;
-  /** Dominio medio 0..1 (avg de competency_progress.mastery). */
-  @Field(() => Float) avgMastery!: number;
-  /** Curso donde esta competencia es más débil (para drill-down). */
-  @Field() courseId!: string;
-}
-
-/** Una competencia en riesgo de un estudiante (fila del roster docente). */
-@ObjectType()
-export class InstructorAtRiskCompetencyType {
-  @Field() code!: string;
-  @Field() name!: string;
-  /** Dominio 0..1 (competency_progress.mastery). */
-  @Field(() => Float) mastery!: number;
-}
-
-/** Estudiante con ≥1 competencia en riesgo en un curso del docente. */
+/**
+ * Estudiante en riesgo en un curso del docente, detectado por REGLAS simples
+ * (sin psicometría). Una fila por (estudiante × curso). Motivos posibles:
+ *  - 'inactivity'      → inscripción activa, curso sin completar, ≥7 días sin actividad.
+ *  - 'low_grades'      → promedio de calificaciones < 51 (umbral de aprobación BO).
+ *  - 'pending_grading' → tiene entregas sin calificar.
+ */
 @ObjectType()
 export class InstructorAtRiskStudentType {
   @Field() userId!: string;
@@ -159,26 +145,16 @@ export class InstructorAtRiskStudentType {
   @Field(() => String, { nullable: true }) avatarUrl?: string | null;
   @Field() courseId!: string;
   @Field() courseTitle!: string;
-  /** Dominio más bajo entre sus competencias en riesgo (para ordenar). */
-  @Field(() => Float) lowestMastery!: number;
   /** Última actividad del estudiante en el curso (enrollment.updatedAt). */
   @Field(() => GraphQLISODateTime, { nullable: true }) lastActivityAt?: Date | null;
-  @Field(() => [InstructorAtRiskCompetencyType])
-  competencies!: InstructorAtRiskCompetencyType[];
-}
-
-/** Tramo del histograma de dominio (mastery) de los cursos del docente. */
-@ObjectType()
-export class InstructorMasteryBucketType {
-  @Field() rangeLabel!: string;
-  @Field(() => Int) count!: number;
-}
-
-/** Conteo de competency_progress por estado en los cursos del docente. */
-@ObjectType()
-export class InstructorCompetencyStatusType {
-  @Field() status!: string;
-  @Field(() => Int) count!: number;
+  /** Promedio de calificaciones 0–100; null si aún no tiene notas. */
+  @Field(() => Float, { nullable: true }) avgGrade?: number | null;
+  /** Entregas del estudiante en el curso a la espera de calificación. */
+  @Field(() => Int) pendingCount!: number;
+  /** Cumple la regla de inactividad (≥7 días sin actividad). */
+  @Field() inactive!: boolean;
+  /** Motivos por los que aparece en riesgo (para ordenar y explicar). */
+  @Field(() => [String]) reasons!: string[];
 }
 
 @ObjectType()
@@ -188,19 +164,10 @@ export class InstructorDashboardStatsType {
   @Field(() => Int) totalStudents!: number;
   /** Intentos entregados sin calificar en todos los cursos del docente. */
   @Field(() => Int) pendingGradesCount!: number;
-  /** Estudiantes distintos con ≥1 competencia en riesgo (detección temprana). */
+  /** Estudiantes distintos en riesgo por reglas (notas bajas / pendientes / inactividad). */
   @Field(() => Int) studentsAtRisk!: number;
   /** Estudiantes activos sin actividad ≥7 días y curso sin completar. */
   @Field(() => Int) inactiveStudents!: number;
-  /** Competencia más débil del plantel; null si aún no hay progreso registrado. */
-  @Field(() => WeakestCompetencyType, { nullable: true })
-  weakestCompetency?: WeakestCompetencyType | null;
-  /** Distribución de dominio (mastery) de sus alumnos en 4 tramos. */
-  @Field(() => [InstructorMasteryBucketType])
-  masteryHistogram!: InstructorMasteryBucketType[];
-  /** Reparto por estado de competencia de sus alumnos. */
-  @Field(() => [InstructorCompetencyStatusType])
-  competencyStatusDistribution!: InstructorCompetencyStatusType[];
 }
 
 @ObjectType()

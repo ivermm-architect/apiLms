@@ -156,6 +156,9 @@ export const evaluationAnswers = pgTable(
     answer: text('answer'),
     isCorrect: boolean('is_correct'),
     pointsEarned: numeric('points_earned', { precision: 5, scale: 2 }).notNull().default('0'),
+    // Retroalimentación del docente para respuestas abiertas (opcional). La IA solo
+    // PROPONE un borrador; el docente lo edita/confirma al calificar (gradeOpenAnswer).
+    feedback: text('feedback'),
     ...timestamps,
   },
   (t) => ({

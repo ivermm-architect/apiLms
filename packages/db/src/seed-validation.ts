@@ -178,9 +178,7 @@ async function main(): Promise<void> {
   const attemptSeen = new Set(existingAttempts.map((r) => `${r.s}:${r.e}`));
 
   // Idempotencia: no regenerar calificaciones si la inscripción ya tiene.
-  const existingGrades = await db
-    .select({ e: schema.grades.enrollmentId })
-    .from(schema.grades);
+  const existingGrades = await db.select({ e: schema.grades.enrollmentId }).from(schema.grades);
   const gradedEnrollments = new Set(existingGrades.map((r) => r.e));
 
   const GRADE_TITLES = [
@@ -328,9 +326,11 @@ async function main(): Promise<void> {
 
   // Idempotencia: una inscripción no se re-reporta ni se re-alerta.
   const reportedStudents = new Set(
-    (await db.select({ s: schema.reports.studentId, c: schema.reports.courseId }).from(schema.reports)).map(
-      (r) => `${r.s}:${r.c ?? ''}`,
-    ),
+    (
+      await db
+        .select({ s: schema.reports.studentId, c: schema.reports.courseId })
+        .from(schema.reports)
+    ).map((r) => `${r.s}:${r.c ?? ''}`),
   );
   const alertedKeys = new Set(
     (
@@ -427,7 +427,7 @@ async function main(): Promise<void> {
   const configRows: (typeof schema.systemConfig.$inferInsert)[] = [
     {
       key: 'institution.name',
-      value: 'Centro de Instrucción y Enseñanza en Bioseguridad y Auxiliar en Enfermería',
+      value: 'Instituto Técnico Superior "Centro Integrado Experimental Boliviano Alemán"',
       description: 'Nombre legal de la institución.',
     },
     { key: 'institution.acronym', value: 'CIEBA', description: 'Sigla institucional.' },
@@ -461,15 +461,12 @@ async function main(): Promise<void> {
   await db.insert(schema.systemConfig).values(configRows).onConflictDoNothing();
 
   /* ── audit_logs: bitácora retroactiva (solo si está vacía) ── */
-  const auditCountRows = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(schema.auditLogs);
+  const auditCountRows = await db.select({ n: sql<number>`count(*)` }).from(schema.auditLogs);
   const auditCount = Number(auditCountRows[0]?.n ?? 0);
   let auditN = 0;
   if (auditCount === 0) {
     const auditRows: (typeof schema.auditLogs.$inferInsert)[] = [];
-    const ipFor = () =>
-      `10.0.${Math.floor(uniform(0, 255))}.${Math.floor(uniform(1, 254))}`;
+    const ipFor = () => `10.0.${Math.floor(uniform(0, 255))}.${Math.floor(uniform(1, 254))}`;
     const ua =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
     for (const en of enrollments) {
@@ -539,7 +536,9 @@ async function main(): Promise<void> {
   console.info('\n✅ Seed de validación completado');
   console.info(`   Fase A · +${attemptsN} intentos, +${answersN} respuestas, +${gradesN} notas`);
   console.info(`   Fase B · +${reportRows.length} reportes, +${alertRows.length} alertas`);
-  console.info(`   Fase C · +${auditN} audit_logs, ${configRows.length} config keys, +${lcRows.length} lesson↔comp`);
+  console.info(
+    `   Fase C · +${auditN} audit_logs, ${configRows.length} config keys, +${lcRows.length} lesson↔comp`,
+  );
   console.info('   ── Totales en BD ──');
   console.info(`   • evaluation_attempts: ${attTotal}`);
   console.info(`   • evaluation_answers:  ${ansTotal}`);

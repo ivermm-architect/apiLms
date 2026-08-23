@@ -99,6 +99,13 @@
       "when": 1787338434915,
       "tag": "20260821185354_luxuriant_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787503302844,
+      "tag": "20260823164142_lonely_emma_frost",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ export class GradeOpenAnswerCommand implements ICommand {
   constructor(
     public readonly answerId: string,
     public readonly points: number,
+    public readonly feedback?: string | null,
   ) {}
 }
 
@@ -32,8 +33,9 @@ export class GradeOpenAnswerHandler implements ICommandHandler<
   ) {}
 
   async execute(cmd: GradeOpenAnswerCommand): Promise<GradedAttempt> {
-    // 1) Califica la respuesta abierta y recalcula el score del intento (sin cambios).
-    const attempt = await this.evaluations.gradeOpenAnswer(cmd.answerId, cmd.points);
+    // 1) Califica la respuesta abierta (con retroalimentación opcional) y recalcula
+    //    el score del intento.
+    const attempt = await this.evaluations.gradeOpenAnswer(cmd.answerId, cmd.points, cmd.feedback);
 
     // 2) Datos para propagar el juicio del docente al motor de competencias.
     const answer = await this.evaluations.getAnswerById(cmd.answerId);

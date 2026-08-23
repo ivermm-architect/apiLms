@@ -1,11 +1,8 @@
 import { schema, Database } from '@cieba/db';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { DATABASE } from '../../../core/database/database.module';
-
-/** Muestra mínima para calibrar un ítem (espejo de `minSample` en el dominio). */
-const MIN_CALIBRATION_SAMPLE = 10;
 
 export interface CalibratedItem {
   id: string;
@@ -341,114 +338,6 @@ export class DrizzleAdaptiveRepository {
       )
       .where(eq(schema.evaluations.courseId, courseId));
     return rows.map((r) => Number(r.b));
-  }
-
-  // ---------- Dominio por competencia (docente) ----------
-
-  /**
-   * Agregado de dominio por competencia para un curso (media + Nº estudiantes).
-   * Con `cohortYear` acota el progreso a esa gestión (1.º / 2.º). En cualquier
-   * caso solo cuenta estudiantes activos: los egresados quedan 'inactive' en la
-   * matrícula por gestión y no deben inflar el agregado. Las competencias sin
-   * progreso visible se mantienen en la lista con valores en cero (left join).
-   */
-  async getCourseCompetencyMastery(courseId: string, cohortYear?: number) {
-    const visibleStudents = await this.db
-      .select({ id: schema.users.id })
-      .from(schema.users)
-      .where(
-        and(
-          eq(schema.users.status, 'active'),
-          cohortYear != null ? eq(schema.users.cohortYear, cohortYear) : undefined,
-        ),
-      );
-    const studentIds = visibleStudents.map((r) => r.id);
-    const visibleFilter =
-      studentIds.length > 0 ? inArray(schema.competencyProgress.userId, studentIds) : sql`false`;
-
-    return this.db
-      .select({
-        competencyId: schema.competencies.id,
-        code: schema.competencies.code,
-        name: schema.competencies.name,
-        avgMastery: sql<string>`coalesce(avg(${schema.competencyProgress.mastery}), 0)`,
-        studentsAtRisk: sql<number>`count(*) filter (where ${schema.competencyProgress.status} = 'en_riesgo')`,
-        studentsMastered: sql<number>`count(*) filter (where ${schema.competencyProgress.status} = 'dominada')`,
-        studentsTracked: sql<number>`count(${schema.competencyProgress.userId})`,
-      })
-      .from(schema.competencies)
-      .leftJoin(
-        schema.competencyProgress,
-        and(eq(schema.competencyProgress.competencyId, schema.competencies.id), visibleFilter),
-      )
-      .where(eq(schema.competencies.courseId, courseId))
-      .groupBy(schema.competencies.id, schema.competencies.code, schema.competencies.name);
-  }
-
-  // ---------- Salud del banco de ítems (docente) ----------
-
-  /**
-   * Salud del banco de ítems de un curso, desglosada por competencia y con
-   * totales del curso. Un ítem se considera calibrado si tiene fila en
-   * `itemIrtParams`; "necesita respuestas" si no está calibrado o su muestra
-   * es menor que el mínimo de calibración (10). Los left join preservan las
-   * competencias sin ítems (todo en cero). Se usa `count(distinct)` porque la
-   * relación ítem↔competencia es N:M y un ítem puede repetir fila.
-   */
-  async getCourseItemBankHealth(courseId: string) {
-    const perCompetency = await this.db
-      .select({
-        competencyId: schema.competencies.id,
-        code: schema.competencies.code,
-        name: schema.competencies.name,
-        totalItems: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.evaluations.id} is not null)`,
-        calibratedItems: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.itemIrtParams.questionId} is not null)`,
-        itemsNeedingResponses: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.evaluations.id} is not null and (${schema.itemIrtParams.questionId} is null or ${schema.itemIrtParams.sampleSize} < ${MIN_CALIBRATION_SAMPLE}))`,
-        easyItems: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.evaluations.id} is not null and ${schema.evaluationQuestions.difficulty} = 'easy')`,
-        mediumItems: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.evaluations.id} is not null and ${schema.evaluationQuestions.difficulty} = 'medium')`,
-        hardItems: sql<number>`count(distinct ${schema.evaluationQuestions.id}) filter (where ${schema.evaluations.id} is not null and ${schema.evaluationQuestions.difficulty} = 'hard')`,
-        avgDifficultyB: sql<string | null>`avg(${schema.itemIrtParams.b})`,
-      })
-      .from(schema.competencies)
-      .leftJoin(
-        schema.questionCompetencies,
-        eq(schema.questionCompetencies.competencyId, schema.competencies.id),
-      )
-      .leftJoin(
-        schema.evaluationQuestions,
-        eq(schema.evaluationQuestions.id, schema.questionCompetencies.questionId),
-      )
-      .leftJoin(
-        schema.evaluations,
-        and(
-          eq(schema.evaluations.id, schema.evaluationQuestions.evaluationId),
-          eq(schema.evaluations.courseId, courseId),
-        ),
-      )
-      .leftJoin(
-        schema.itemIrtParams,
-        eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
-      )
-      .where(eq(schema.competencies.courseId, courseId))
-      .groupBy(schema.competencies.id, schema.competencies.code, schema.competencies.name);
-
-    const [courseTotals] = await this.db
-      .select({
-        totalItems: sql<number>`count(*)`,
-        calibratedItems: sql<number>`count(${schema.itemIrtParams.questionId})`,
-      })
-      .from(schema.evaluationQuestions)
-      .innerJoin(
-        schema.evaluations,
-        eq(schema.evaluations.id, schema.evaluationQuestions.evaluationId),
-      )
-      .leftJoin(
-        schema.itemIrtParams,
-        eq(schema.itemIrtParams.questionId, schema.evaluationQuestions.id),
-      )
-      .where(eq(schema.evaluations.courseId, courseId));
-
-    return { perCompetency, courseTotals: courseTotals ?? { totalItems: 0, calibratedItems: 0 } };
   }
 
   // ---------- Calibración ----------

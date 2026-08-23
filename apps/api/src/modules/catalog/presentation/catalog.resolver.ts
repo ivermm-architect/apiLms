@@ -45,6 +45,9 @@ import {
   TopInstructorType,
 } from './dto/catalog.types';
 
+/** % mínimo de aprobación (Bolivia); por debajo cuenta como "notas bajas". */
+const LOW_GRADE_THRESHOLD = 51;
+
 @UseGuards(RolesGuard)
 @Resolver(() => CourseType)
 export class CatalogResolver {
@@ -272,13 +275,6 @@ export class CatalogResolver {
     const draftCourses = myCourses.filter((c) => c.status === 'draft').length;
     const courseIds = myCourses.map((c) => c.id);
 
-    const EMPTY_HISTOGRAM = [
-      { rangeLabel: '0–25%', count: 0 },
-      { rangeLabel: '25–50%', count: 0 },
-      { rangeLabel: '50–75%', count: 0 },
-      { rangeLabel: '75–100%', count: 0 },
-    ];
-
     if (courseIds.length === 0) {
       return {
         publishedCourses,
@@ -287,9 +283,6 @@ export class CatalogResolver {
         pendingGradesCount: 0,
         studentsAtRisk: 0,
         inactiveStudents: 0,
-        weakestCompetency: null,
-        masteryHistogram: EMPTY_HISTOGRAM,
-        competencyStatusDistribution: [],
       };
     }
 
@@ -315,177 +308,97 @@ export class CatalogResolver {
         pendingGradesCount: 0,
         studentsAtRisk: 0,
         inactiveStudents: 0,
-        weakestCompetency: null,
-        masteryHistogram: EMPTY_HISTOGRAM,
-        competencyStatusDistribution: [],
       };
     }
 
     // Corre los agregados en paralelo; cada uno acotado a los cursos del docente
     // y a los estudiantes visibles (gestión seleccionada, sin egresados).
-    const [pendingRows, riskRows, inactiveRows, weakRows, histRows, statusRows, uniqueRows] =
-      await Promise.all([
-        // 1. Calificaciones pendientes: intentos entregados sin score.
-        this.db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(schema.evaluationAttempts)
-          .innerJoin(
-            schema.evaluations,
-            eq(schema.evaluations.id, schema.evaluationAttempts.evaluationId),
-          )
-          .where(
-            and(
-              inArray(schema.evaluations.courseId, courseIds),
-              inArray(schema.evaluationAttempts.studentId, studentIds),
-              sql`${schema.evaluationAttempts.submittedAt} is not null`,
-              sql`${schema.evaluationAttempts.score} is null`,
-            ),
+    const [pendingRows, riskRows, inactiveRows, uniqueRows] = await Promise.all([
+      // 1. Calificaciones pendientes: intentos entregados sin score.
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.evaluationAttempts)
+        .innerJoin(
+          schema.evaluations,
+          eq(schema.evaluations.id, schema.evaluationAttempts.evaluationId),
+        )
+        .where(
+          and(
+            inArray(schema.evaluations.courseId, courseIds),
+            inArray(schema.evaluationAttempts.studentId, studentIds),
+            sql`${schema.evaluationAttempts.submittedAt} is not null`,
+            sql`${schema.evaluationAttempts.score} is null`,
           ),
-        // 2. Estudiantes a intervenir: dominio PROMEDIO por estudiante < 0.4
-        //    (mismo corte 'en_riesgo' de masteryStatus). Una fila por estudiante
-        //    en riesgo → el conteo sale de `.length`. Sustituye al criterio previo
-        //    (≥1 competencia floja) que saturaba el KPI cerca del 95% y no accionaba.
-        this.db
-          .select({ userId: schema.competencyProgress.userId })
-          .from(schema.competencyProgress)
-          .innerJoin(
-            schema.competencies,
-            eq(schema.competencies.id, schema.competencyProgress.competencyId),
-          )
-          .where(
-            and(
-              inArray(schema.competencies.courseId, courseIds),
-              inArray(schema.competencyProgress.userId, studentIds),
-            ),
-          )
-          .groupBy(schema.competencyProgress.userId)
-          .having(sql`avg(${schema.competencyProgress.mastery}) < 0.4`),
-        // 3. Estudiantes inactivos: inscripción activa, sin completar, ≥7 días sin actividad.
-        this.db
-          .select({ count: sql<number>`count(distinct ${schema.enrollments.userId})::int` })
-          .from(schema.enrollments)
-          .where(
-            and(
-              inArray(schema.enrollments.courseId, courseIds),
-              inArray(schema.enrollments.userId, studentIds),
-              eq(schema.enrollments.status, 'active'),
-              sql`${schema.enrollments.progressPercentage}::numeric < 100`,
-              sql`${schema.enrollments.updatedAt} <= now() - interval '7 days'`,
-            ),
+        ),
+      // 2. Estudiantes en riesgo por REGLAS (sin psicometría): inscripción activa que
+      //    cumple ≥1 de — inactividad ≥7 días · entregas sin calificar · promedio de
+      //    notas < umbral de aprobación. Cuenta estudiantes distintos.
+      this.db
+        .select({ count: sql<number>`count(distinct ${schema.enrollments.userId})::int` })
+        .from(schema.enrollments)
+        .where(
+          and(
+            inArray(schema.enrollments.courseId, courseIds),
+            inArray(schema.enrollments.userId, studentIds),
+            eq(schema.enrollments.status, 'active'),
+            sql`(
+              (${schema.enrollments.progressPercentage}::numeric < 100 and ${schema.enrollments.updatedAt} <= now() - interval '7 days')
+              or exists (
+                select 1 from evaluation_attempts ea
+                join evaluations ev on ev.id = ea.evaluation_id
+                where ea.student_id = ${schema.enrollments.userId} and ev.course_id = ${schema.enrollments.courseId}
+                  and ea.submitted_at is not null and ea.score is null
+              )
+              or coalesce((
+                select avg(g.score / nullif(g.max_score, 0) * 100)
+                from grades g
+                where g.student_id = ${schema.enrollments.userId} and g.course_id = ${schema.enrollments.courseId}
+              ), 100) < ${LOW_GRADE_THRESHOLD}
+            )`,
           ),
-        // 4. Competencia más débil: menor dominio medio entre competencias con seguimiento.
-        this.db
-          .select({
-            code: schema.competencies.code,
-            name: schema.competencies.name,
-            courseId: schema.competencies.courseId,
-            avgMastery: sql<string>`avg(${schema.competencyProgress.mastery})`,
-          })
-          .from(schema.competencies)
-          .innerJoin(
-            schema.competencyProgress,
-            eq(schema.competencyProgress.competencyId, schema.competencies.id),
-          )
-          .where(
-            and(
-              inArray(schema.competencies.courseId, courseIds),
-              inArray(schema.competencyProgress.userId, studentIds),
-            ),
-          )
-          .groupBy(
-            schema.competencies.id,
-            schema.competencies.code,
-            schema.competencies.name,
-            schema.competencies.courseId,
-          )
-          .orderBy(sql`avg(${schema.competencyProgress.mastery}) asc`)
-          .limit(1),
-        // 5. Histograma de dominio: reparte mastery (0..1) en 4 tramos, acotado al docente.
-        this.db
-          .select({
-            b0: sql<number>`count(*) filter (where ${schema.competencyProgress.mastery} < 0.25)::int`,
-            b1: sql<number>`count(*) filter (where ${schema.competencyProgress.mastery} >= 0.25 and ${schema.competencyProgress.mastery} < 0.5)::int`,
-            b2: sql<number>`count(*) filter (where ${schema.competencyProgress.mastery} >= 0.5 and ${schema.competencyProgress.mastery} < 0.75)::int`,
-            b3: sql<number>`count(*) filter (where ${schema.competencyProgress.mastery} >= 0.75)::int`,
-          })
-          .from(schema.competencyProgress)
-          .innerJoin(
-            schema.competencies,
-            eq(schema.competencies.id, schema.competencyProgress.competencyId),
-          )
-          .where(
-            and(
-              inArray(schema.competencies.courseId, courseIds),
-              inArray(schema.competencyProgress.userId, studentIds),
-            ),
+        ),
+      // 3. Estudiantes inactivos: inscripción activa, sin completar, ≥7 días sin actividad.
+      this.db
+        .select({ count: sql<number>`count(distinct ${schema.enrollments.userId})::int` })
+        .from(schema.enrollments)
+        .where(
+          and(
+            inArray(schema.enrollments.courseId, courseIds),
+            inArray(schema.enrollments.userId, studentIds),
+            eq(schema.enrollments.status, 'active'),
+            sql`${schema.enrollments.progressPercentage}::numeric < 100`,
+            sql`${schema.enrollments.updatedAt} <= now() - interval '7 days'`,
           ),
-        // 6. Distribución por estado de competencia, acotada al docente.
-        this.db
-          .select({
-            status: schema.competencyProgress.status,
-            count: sql<number>`count(*)::int`,
-          })
-          .from(schema.competencyProgress)
-          .innerJoin(
-            schema.competencies,
-            eq(schema.competencies.id, schema.competencyProgress.competencyId),
-          )
-          .where(
-            and(
-              inArray(schema.competencies.courseId, courseIds),
-              inArray(schema.competencyProgress.userId, studentIds),
-            ),
-          )
-          .groupBy(schema.competencyProgress.status),
-        // 7. Estudiantes ÚNICOS que sigue el docente (activos + gestión). Reemplaza
-        //    la suma de `courses.totalStudents`, que contaba inscripciones (mismo
-        //    alumno en N cursos = N), incluía egresados y no respetaba `cohortYear`.
-        this.db
-          .select({ count: sql<number>`count(distinct ${schema.enrollments.userId})::int` })
-          .from(schema.enrollments)
-          .where(
-            and(
-              inArray(schema.enrollments.courseId, courseIds),
-              inArray(schema.enrollments.userId, studentIds),
-            ),
+        ),
+      // 4. Estudiantes ÚNICOS que sigue el docente (activos + gestión). Reemplaza
+      //    la suma de `courses.totalStudents`, que contaba inscripciones (mismo
+      //    alumno en N cursos = N), incluía egresados y no respetaba `cohortYear`.
+      this.db
+        .select({ count: sql<number>`count(distinct ${schema.enrollments.userId})::int` })
+        .from(schema.enrollments)
+        .where(
+          and(
+            inArray(schema.enrollments.courseId, courseIds),
+            inArray(schema.enrollments.userId, studentIds),
           ),
-      ]);
-
-    const weakRow = weakRows[0];
-    const hist = histRows[0];
+        ),
+    ]);
 
     return {
       publishedCourses,
       draftCourses,
       totalStudents: Number(uniqueRows[0]?.count ?? 0),
       pendingGradesCount: Number(pendingRows[0]?.count ?? 0),
-      studentsAtRisk: riskRows.length,
+      studentsAtRisk: Number(riskRows[0]?.count ?? 0),
       inactiveStudents: Number(inactiveRows[0]?.count ?? 0),
-      weakestCompetency: weakRow
-        ? {
-            code: weakRow.code,
-            name: weakRow.name,
-            avgMastery: Number(weakRow.avgMastery),
-            courseId: weakRow.courseId,
-          }
-        : null,
-      masteryHistogram: [
-        { rangeLabel: '0–25%', count: Number(hist?.b0 ?? 0) },
-        { rangeLabel: '25–50%', count: Number(hist?.b1 ?? 0) },
-        { rangeLabel: '50–75%', count: Number(hist?.b2 ?? 0) },
-        { rangeLabel: '75–100%', count: Number(hist?.b3 ?? 0) },
-      ],
-      competencyStatusDistribution: statusRows.map((r) => ({
-        status: r.status,
-        count: Number(r.count),
-      })),
     };
   }
 
   /**
-   * Roster cross-curso de estudiantes con ≥1 competencia en riesgo.
-   * Drill-down del KPI "Estudiantes en riesgo" del dashboard docente.
-   * Una fila por (estudiante × curso); ordena por menor dominio primero.
+   * Roster cross-curso de estudiantes en riesgo por REGLAS simples (sin psicometría):
+   * inactividad ≥7 días, entregas sin calificar o promedio de notas por debajo del
+   * umbral de aprobación. Drill-down del KPI "Estudiantes en riesgo". Una fila por
+   * (estudiante × curso); ordena por gravedad (más motivos y menor nota primero).
    */
   @UseGuards(JwtAuthGuard)
   @Query(() => [InstructorAtRiskStudentType])
@@ -500,69 +413,80 @@ export class CatalogResolver {
     const courseIds = myCourses.map((c) => c.id);
     if (courseIds.length === 0) return [];
 
-    // Filas planas: una por competencia en riesgo de cada estudiante.
+    // Una fila por (estudiante × curso) con las señales de las 3 reglas ya calculadas
+    // en SQL: inactividad, promedio de notas y entregas pendientes de calificar.
     const rows = await this.db
       .select({
-        userId: schema.competencyProgress.userId,
+        userId: schema.enrollments.userId,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
         email: schema.users.email,
         avatarUrl: schema.users.avatarUrl,
-        courseId: schema.competencies.courseId,
+        courseId: schema.enrollments.courseId,
         courseTitle: schema.courses.title,
-        code: schema.competencies.code,
-        name: schema.competencies.name,
-        mastery: schema.competencyProgress.mastery,
         lastActivityAt: schema.enrollments.updatedAt,
+        inactive: sql<boolean>`(${schema.enrollments.progressPercentage}::numeric < 100 and ${schema.enrollments.updatedAt} <= now() - interval '7 days')`,
+        avgGrade: sql<string | null>`(
+          select avg(g.score / nullif(g.max_score, 0) * 100)
+          from grades g
+          where g.student_id = ${schema.enrollments.userId} and g.course_id = ${schema.enrollments.courseId}
+        )`,
+        pendingCount: sql<number>`(
+          select count(*)::int
+          from evaluation_attempts ea
+          join evaluations ev on ev.id = ea.evaluation_id
+          where ea.student_id = ${schema.enrollments.userId} and ev.course_id = ${schema.enrollments.courseId}
+            and ea.submitted_at is not null and ea.score is null
+        )`,
       })
-      .from(schema.competencyProgress)
-      .innerJoin(
-        schema.competencies,
-        eq(schema.competencies.id, schema.competencyProgress.competencyId),
-      )
-      .innerJoin(schema.courses, eq(schema.courses.id, schema.competencies.courseId))
-      .innerJoin(schema.users, eq(schema.users.id, schema.competencyProgress.userId))
-      .leftJoin(
-        schema.enrollments,
-        and(
-          eq(schema.enrollments.userId, schema.competencyProgress.userId),
-          eq(schema.enrollments.courseId, schema.competencies.courseId),
-        ),
-      )
+      .from(schema.enrollments)
+      .innerJoin(schema.courses, eq(schema.courses.id, schema.enrollments.courseId))
+      .innerJoin(schema.users, eq(schema.users.id, schema.enrollments.userId))
       .where(
         and(
-          inArray(schema.competencies.courseId, courseIds),
-          eq(schema.competencyProgress.status, 'en_riesgo'),
+          inArray(schema.enrollments.courseId, courseIds),
+          eq(schema.enrollments.status, 'active'),
+          eq(schema.users.status, 'active'),
         ),
-      )
-      .orderBy(schema.competencyProgress.mastery);
+      );
 
-    // Agrupa por estudiante × curso.
-    const grouped = new Map<string, InstructorAtRiskStudentType>();
+    // Aplica las reglas en memoria y descarta a quien no cumple ninguna.
+    const atRisk: InstructorAtRiskStudentType[] = [];
     for (const r of rows) {
-      const key = `${r.userId}:${r.courseId}`;
-      const mastery = Number(r.mastery);
-      let entry = grouped.get(key);
-      if (!entry) {
-        entry = {
-          userId: r.userId,
-          firstName: r.firstName,
-          lastName: r.lastName,
-          email: r.email,
-          avatarUrl: r.avatarUrl ?? null,
-          courseId: r.courseId,
-          courseTitle: r.courseTitle,
-          lowestMastery: mastery,
-          lastActivityAt: r.lastActivityAt ?? null,
-          competencies: [],
-        };
-        grouped.set(key, entry);
-      }
-      entry.competencies.push({ code: r.code, name: r.name, mastery });
-      if (mastery < entry.lowestMastery) entry.lowestMastery = mastery;
+      const avgGrade = r.avgGrade != null ? Math.round(Number(r.avgGrade)) : null;
+      const pendingCount = Number(r.pendingCount);
+      const inactive = Boolean(r.inactive);
+      const lowGrades = avgGrade != null && avgGrade < LOW_GRADE_THRESHOLD;
+
+      const reasons: string[] = [];
+      if (lowGrades) reasons.push('low_grades');
+      if (pendingCount > 0) reasons.push('pending_grading');
+      if (inactive) reasons.push('inactivity');
+      if (reasons.length === 0) continue;
+
+      atRisk.push({
+        userId: r.userId,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.email,
+        avatarUrl: r.avatarUrl ?? null,
+        courseId: r.courseId,
+        courseTitle: r.courseTitle,
+        lastActivityAt: r.lastActivityAt ?? null,
+        avgGrade,
+        pendingCount,
+        inactive,
+        reasons,
+      });
     }
 
-    return [...grouped.values()].sort((a, b) => a.lowestMastery - b.lowestMastery);
+    // Ordena por gravedad: más motivos primero; a igualdad, menor promedio de notas.
+    return atRisk.sort((a, b) => {
+      if (b.reasons.length !== a.reasons.length) return b.reasons.length - a.reasons.length;
+      const ga = a.avgGrade ?? 101;
+      const gb = b.avgGrade ?? 101;
+      return ga - gb;
+    });
   }
 
   /**

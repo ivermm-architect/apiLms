@@ -79,6 +79,29 @@ export class AddQuestionInput {
 }
 
 @InputType()
+export class SuggestQuestionsInput {
+  /** Curso (para verificar propiedad del docente). */
+  @Field() @IsUUID() courseId!: string;
+  /** Lección base del tema (opcional; se usa su título + contenido). */
+  @Field(() => String, { nullable: true }) @IsOptional() @IsUUID() lessonId?: string;
+  /** Tema libre si no se indica una lección. */
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  topic?: string;
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(['multiple_choice', 'true_false', 'open'])
+  questionType?: 'multiple_choice' | 'true_false' | 'open';
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(['easy', 'medium', 'hard'])
+  difficulty?: 'easy' | 'medium' | 'hard';
+  @Field(() => Int, { nullable: true }) @IsOptional() @IsInt() @Min(1) @Max(10) count?: number;
+}
+
+@InputType()
 export class AnswerInput {
   @Field() @IsUUID() questionId!: string;
   @Field() @IsString() answer!: string;

@@ -45,6 +45,20 @@ export const ConfigSchema = z
     // independiente de la calibración. Con AI_RECOMMENDATION_ENABLED=false el
     // recomendador usa SOLO su justificación determinista (comportamiento actual).
     AI_RECOMMENDATION_ENABLED: z.coerce.boolean().default(false),
+    // IA — Sugerencia de preguntas para creación de evaluaciones (B8), OPCIONAL e
+    // independiente. Con AI_QUESTION_GEN_ENABLED=false la sugerencia devuelve [] y
+    // el docente crea preguntas manualmente (comportamiento idéntico a hoy).
+    AI_QUESTION_GEN_ENABLED: z.coerce.boolean().default(false),
+    // IA — Sugerencia de retroalimentación al calificar respuestas abiertas (B9),
+    // OPCIONAL e independiente. Con AI_FEEDBACK_ENABLED=false devuelve null y el
+    // docente escribe la retroalimentación manualmente (comportamiento idéntico).
+    AI_FEEDBACK_ENABLED: z.coerce.boolean().default(false),
+    // IA — Informe de aprendizaje del estudiante (tesis §2.9), OPCIONAL e
+    // independiente. Con AI_LEARNING_REPORT_ENABLED=false el informe devuelve
+    // generated=false y la UI lo oculta (degradación elegante). La IA solo
+    // REDACTA a partir de hechos reales (avance + promedios); no calcula ni
+    // muestra cifras psicométricas (θ, error estándar ni % de dominio).
+    AI_LEARNING_REPORT_ENABLED: z.coerce.boolean().default(false),
   })
   .superRefine((cfg, ctx) => {
     // En producción, rechazamos secretos de desarrollo para fallar rápido en boot

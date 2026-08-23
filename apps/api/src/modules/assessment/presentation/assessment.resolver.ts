@@ -17,6 +17,11 @@ import { GradeOpenAnswerCommand } from '../application/commands/grade-open-answe
 import { GradeStudentCommand } from '../application/commands/grade-student.command';
 import { StartEvaluationCommand } from '../application/commands/start-evaluation.command';
 import { SubmitEvaluationCommand } from '../application/commands/submit-evaluation.command';
+import {
+  ANSWER_FEEDBACK_SUGGESTER,
+  AnswerFeedbackSuggesterPort,
+} from '../domain/ports/answer-feedback-suggester.port';
+import { QUESTION_SUGGESTER, QuestionSuggesterPort } from '../domain/ports/question-suggester.port';
 import { DrizzleEvaluationRepository } from '../infrastructure/drizzle-evaluation.repository';
 import { DrizzleGradeRepository } from '../infrastructure/drizzle-grade.repository';
 
@@ -25,6 +30,7 @@ import {
   CreateEvaluationInput,
   GradeStudentInput,
   SubmitEvaluationInput,
+  SuggestQuestionsInput,
 } from './dto/assessment.input';
 import {
   EvaluationAttemptType,
@@ -32,6 +38,7 @@ import {
   EvaluationType,
   GradeType,
   PendingOpenAnswerType,
+  SuggestedQuestionType,
 } from './dto/assessment.types';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,6 +51,9 @@ export class AssessmentResolver {
     private readonly courseOwnership: CourseOwnershipService,
     @Inject(DATABASE) private readonly db: Database,
     private readonly audit: DrizzleAuditRepository,
+    @Inject(QUESTION_SUGGESTER) private readonly questionSuggester: QuestionSuggesterPort,
+    @Inject(ANSWER_FEEDBACK_SUGGESTER)
+    private readonly answerFeedbackSuggester: AnswerFeedbackSuggesterPort,
   ) {}
 
   private async assertEvaluationOwnership(evaluationId: string, user: JwtPayload): Promise<void> {
@@ -200,6 +210,46 @@ export class AssessmentResolver {
     return rows as unknown as EvaluationQuestionType[];
   }
 
+  /**
+   * PROPONE borradores de preguntas con apoyo de IA para que el docente los
+   * revise/edite antes de crearlos con `addEvaluationQuestion`. Nunca persiste
+   * ni publica nada. Devuelve `[]` si la IA está deshabilitada o falla, de modo
+   * que la pantalla sigue funcionando con alta manual (degradación elegante).
+   */
+  @Query(() => [SuggestedQuestionType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async suggestEvaluationQuestions(
+    @Args('input') input: SuggestQuestionsInput,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<SuggestedQuestionType[]> {
+    await this.courseOwnership.assertOwnership(input.courseId, user);
+
+    let topic = input.topic?.trim() ?? '';
+    if (input.lessonId) {
+      const [lesson] = await this.db
+        .select({
+          title: schema.lessons.title,
+          content: schema.lessons.content,
+        })
+        .from(schema.lessons)
+        .where(eq(schema.lessons.id, input.lessonId))
+        .limit(1);
+      if (lesson) {
+        topic = [lesson.title, lesson.content ?? ''].filter(Boolean).join('\n\n').trim();
+      }
+    }
+    if (!topic) return [];
+
+    const suggestions = await this.questionSuggester.suggest({
+      topic,
+      questionType: input.questionType ?? 'multiple_choice',
+      difficulty: input.difficulty ?? 'medium',
+      count: input.count ?? 3,
+    });
+
+    return suggestions as unknown as SuggestedQuestionType[];
+  }
+
   @Mutation(() => EvaluationAttemptType)
   async startEvaluation(
     @Args('evaluationId') evaluationId: string,
@@ -260,18 +310,46 @@ export class AssessmentResolver {
   }
 
   /** Califica una respuesta abierta, recalcula el score del intento y propaga
-   *  el juicio del docente al motor de competencias (BKT, umbral 50%). */
+   *  el juicio del docente al motor de competencias (BKT, umbral 50%). Acepta
+   *  retroalimentación opcional que se guarda con la respuesta. */
   @Mutation(() => EvaluationAttemptType)
   @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
   async gradeOpenAnswer(
     @Args('answerId') answerId: string,
     @Args('points', { type: () => Float }) points: number,
     @CurrentUser() user: JwtPayload,
+    @Args('feedback', { nullable: true }) feedback?: string,
   ): Promise<EvaluationAttemptType> {
     const courseId = await this.evaluations.getAnswerEvaluationCourse(answerId);
     if (!courseId) throw new NotFoundException('Respuesta no encontrada');
     await this.courseOwnership.assertOwnership(courseId, user);
-    const updated = await this.commandBus.execute(new GradeOpenAnswerCommand(answerId, points));
+    const updated = await this.commandBus.execute(
+      new GradeOpenAnswerCommand(answerId, points, feedback),
+    );
     return updated as EvaluationAttemptType;
+  }
+
+  /** PROPONE con IA un borrador de retroalimentación para una respuesta abierta.
+   *  El docente lo revisa/edita antes de guardarlo con `gradeOpenAnswer`. Devuelve
+   *  `null` si la IA está deshabilitada o no puede proponer (degradación elegante). */
+  @Query(() => String, { nullable: true })
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async suggestOpenAnswerFeedback(
+    @Args('answerId') answerId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<string | null> {
+    const courseId = await this.evaluations.getAnswerEvaluationCourse(answerId);
+    if (!courseId) throw new NotFoundException('Respuesta no encontrada');
+    await this.courseOwnership.assertOwnership(courseId, user);
+
+    const ctx = await this.evaluations.getAnswerFeedbackContext(answerId);
+    if (!ctx) return null;
+
+    return this.answerFeedbackSuggester.suggestFeedback({
+      questionText: ctx.questionText,
+      studentAnswer: ctx.studentAnswer ?? '',
+      expectedAnswer: ctx.correctAnswer,
+      maxPoints: Number(ctx.maxPoints),
+    });
   }
 }

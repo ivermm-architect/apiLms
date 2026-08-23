@@ -315,8 +315,27 @@ export class DrizzleEvaluationRepository {
     return row ?? null;
   }
 
+  /** Contexto de una respuesta abierta para redactar retroalimentación (IA). */
+  async getAnswerFeedbackContext(answerId: string) {
+    const [row] = await this.db
+      .select({
+        questionText: schema.evaluationQuestions.questionText,
+        correctAnswer: schema.evaluationQuestions.correctAnswer,
+        studentAnswer: schema.evaluationAnswers.answer,
+        maxPoints: schema.evaluationQuestions.points,
+      })
+      .from(schema.evaluationAnswers)
+      .innerJoin(
+        schema.evaluationQuestions,
+        eq(schema.evaluationAnswers.questionId, schema.evaluationQuestions.id),
+      )
+      .where(eq(schema.evaluationAnswers.id, answerId))
+      .limit(1);
+    return row ?? null;
+  }
+
   /** Califica una respuesta abierta y recalcula el score del intento. */
-  async gradeOpenAnswer(answerId: string, points: number) {
+  async gradeOpenAnswer(answerId: string, points: number, feedback?: string | null) {
     const [ans] = await this.db
       .select()
       .from(schema.evaluationAnswers)
@@ -334,7 +353,11 @@ export class DrizzleEvaluationRepository {
 
     await this.db
       .update(schema.evaluationAnswers)
-      .set({ pointsEarned: String(clamped), isCorrect: max > 0 ? clamped >= max : clamped > 0 })
+      .set({
+        pointsEarned: String(clamped),
+        isCorrect: max > 0 ? clamped >= max : clamped > 0,
+        ...(feedback !== undefined ? { feedback: feedback?.trim() || null } : {}),
+      })
       .where(eq(schema.evaluationAnswers.id, answerId));
 
     return this.recomputeAttempt(ans.attemptId);

@@ -183,7 +183,7 @@ export class CurriculumPdfService {
       info: {
         Title: 'Plan de Estudios — CIEBA',
         Author: palette.platformName,
-        Subject: 'Malla curricular — Auxiliar en Enfermería',
+        Subject: 'Malla curricular — Técnico Medio en Enfermería',
       },
     });
 
@@ -244,20 +244,26 @@ export class CurriculumPdfService {
   ): void {
     const { FG, MUTED } = CurriculumPdfService;
 
-    // Wordmark: logo + nombre de plataforma.
+    // Wordmark centrado: logo sobre el nombre de la plataforma (emblema).
     const logoSize = 34;
     const logoTop = doc.y;
-    this.drawLogo(doc, left, logoTop, logoSize, palette);
+    this.drawLogo(doc, left + (contentWidth - logoSize) / 2, logoTop, logoSize, palette);
     doc
       .fillColor(FG)
       .font('Helvetica-Bold')
       .fontSize(15)
-      .text(palette.platformName, left + logoSize + 12, logoTop + 2);
+      .text(palette.platformName, left, logoTop + logoSize + 8, {
+        width: contentWidth,
+        align: 'center',
+      });
     doc
       .fillColor(MUTED)
       .font('Helvetica')
       .fontSize(9)
-      .text('Instituto de formación técnica', left + logoSize + 12, logoTop + 20);
+      .text('Instituto de formación técnica', left, doc.y + 1, {
+        width: contentWidth,
+        align: 'center',
+      });
 
     // Bloque de título — protagonista, centrado en el tercio superior-medio.
     doc.y = doc.page.height * 0.34;
@@ -265,33 +271,55 @@ export class CurriculumPdfService {
       .fillColor(palette.primary)
       .font('Helvetica-Bold')
       .fontSize(13)
-      .text('DOCUMENTO OFICIAL', { characterSpacing: 3 });
+      .text('DOCUMENTO OFICIAL', left, doc.y, {
+        characterSpacing: 3,
+        width: contentWidth,
+        align: 'center',
+      });
     doc.moveDown(0.6);
-    doc.fillColor(FG).font('Helvetica-Bold').fontSize(46).text('Plan de Estudios', { lineGap: 2 });
+    doc
+      .fillColor(FG)
+      .font('Helvetica-Bold')
+      .fontSize(46)
+      .text('Plan de Estudios', left, doc.y, { lineGap: 2, width: contentWidth, align: 'center' });
     doc.moveDown(0.5);
     doc
       .fillColor(MUTED)
       .font('Helvetica')
       .fontSize(15)
-      .text('Carrera de Auxiliar en Enfermería', { paragraphGap: 3 });
+      .text('Carrera de Técnico Medio en Enfermería', left, doc.y, {
+        paragraphGap: 3,
+        width: contentWidth,
+        align: 'center',
+      });
     const yearsWord = CurriculumPdfService.YEAR_WORDS[yearsCount] ?? String(yearsCount);
     doc
       .fillColor(MUTED)
       .fontSize(12)
-      .text(`Formación integral de ${yearsWord} ${yearsCount === 1 ? 'año' : 'años'}`);
+      .text(
+        `Formación integral de ${yearsWord} ${yearsCount === 1 ? 'año' : 'años'}`,
+        left,
+        doc.y,
+        {
+          width: contentWidth,
+          align: 'center',
+        },
+      );
 
+    // Línea de acento centrada bajo el título.
     doc.moveDown(1.2);
+    const cx = left + contentWidth / 2;
     doc
       .strokeColor(palette.primary)
       .lineWidth(4)
-      .moveTo(left, doc.y)
-      .lineTo(left + 88, doc.y)
+      .moveTo(cx - 44, doc.y)
+      .lineTo(cx + 44, doc.y)
       .stroke();
 
-    // Ficha de metadatos: fluye tras la línea con aire generoso (sin pegarse al pie).
+    // Ficha de metadatos: pares centrados (etiqueta sobre valor).
     doc.moveDown(2.4);
     const rows: Array<[string, string]> = [
-      ['Programa', 'Auxiliar en Enfermería'],
+      ['Programa', 'Técnico Medio en Enfermería'],
       [
         'Estructura',
         `${yearsCount} ${yearsCount === 1 ? 'año' : 'años'} · ${totalCourses} materias`,
@@ -305,16 +333,15 @@ export class CurriculumPdfService {
     for (const [k, v] of rows) {
       doc.fillColor(MUTED).font('Helvetica').fontSize(9).text(k.toUpperCase(), left, ry, {
         characterSpacing: 1.5,
-        width: 130,
+        width: contentWidth,
+        align: 'center',
       });
       doc
         .fillColor(FG)
         .font('Helvetica-Bold')
         .fontSize(12)
-        .text(v, left + 140, ry, {
-          width: contentWidth - 140,
-        });
-      ry += 28;
+        .text(v, left, ry + 13, { width: contentWidth, align: 'center' });
+      ry += 40;
     }
   }
 
