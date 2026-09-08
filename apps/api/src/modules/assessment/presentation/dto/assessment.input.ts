@@ -35,6 +35,40 @@ export class GradeStudentInput {
 }
 
 @InputType()
+export class CreateActivityInput {
+  @Field() @IsUUID() courseId!: string;
+  @Field() @IsString() @MinLength(2) @MaxLength(200) title!: string;
+  @Field(() => String, { nullable: true }) @IsOptional() @IsString() description?: string;
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEnum(['practica', 'actividad'])
+  category?: 'practica' | 'actividad';
+  @Field(() => Number, { nullable: true }) @IsOptional() @IsNumber() @Min(1) maxScore?: number;
+  @Field(() => Number, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  weight?: number;
+}
+
+@InputType()
+export class SetCourseGradeWeightsInput {
+  @Field() @IsUUID() courseId!: string;
+  @Field(() => Number) @IsNumber() @Min(0) @Max(100) examWeight!: number;
+  @Field(() => Number) @IsNumber() @Min(0) @Max(100) practiceWeight!: number;
+  @Field(() => Number) @IsNumber() @Min(0) @Max(100) activityWeight!: number;
+}
+
+@InputType()
+export class SetActivityGradeInput {
+  @Field() @IsUUID() activityId!: string;
+  @Field() @IsUUID() enrollmentId!: string;
+  @Field() @IsNumber() @Min(0) score!: number;
+  @Field(() => String, { nullable: true }) @IsOptional() @IsString() feedback?: string;
+}
+
+@InputType()
 export class CreateEvaluationInput {
   @Field() @IsUUID() courseId!: string;
   @Field(() => String, { nullable: true }) @IsOptional() @IsUUID() lessonId?: string;
@@ -88,7 +122,7 @@ export class SuggestQuestionsInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(6000)
   topic?: string;
   @Field(() => String, { nullable: true })
   @IsOptional()

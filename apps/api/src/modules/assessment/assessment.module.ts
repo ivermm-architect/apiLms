@@ -9,7 +9,9 @@ import { StartEvaluationHandler } from './application/commands/start-evaluation.
 import { SubmitEvaluationHandler } from './application/commands/submit-evaluation.command';
 import { ANSWER_FEEDBACK_SUGGESTER } from './domain/ports/answer-feedback-suggester.port';
 import { QUESTION_SUGGESTER } from './domain/ports/question-suggester.port';
+import { DrizzleActivityRepository } from './infrastructure/drizzle-activity.repository';
 import { DrizzleEvaluationRepository } from './infrastructure/drizzle-evaluation.repository';
+import { DrizzleFinalGradeRepository } from './infrastructure/drizzle-final-grade.repository';
 import { DrizzleGradeRepository } from './infrastructure/drizzle-grade.repository';
 import { LlmAnswerFeedbackSuggesterAdapter } from './infrastructure/llm-answer-feedback-suggester.adapter';
 import { LlmQuestionSuggesterAdapter } from './infrastructure/llm-question-suggester.adapter';
@@ -19,6 +21,8 @@ import { AssessmentResolver } from './presentation/assessment.resolver';
   imports: [CqrsModule, AuthModule],
   providers: [
     DrizzleGradeRepository,
+    DrizzleActivityRepository,
+    DrizzleFinalGradeRepository,
     DrizzleEvaluationRepository,
     GradeStudentHandler,
     GradeOpenAnswerHandler,
@@ -30,6 +34,11 @@ import { AssessmentResolver } from './presentation/assessment.resolver';
     // Puerto de SUGERENCIA de retroalimentación asistida por IA (calificar abiertas), opcional.
     { provide: ANSWER_FEEDBACK_SUGGESTER, useClass: LlmAnswerFeedbackSuggesterAdapter },
   ],
-  exports: [DrizzleEvaluationRepository, DrizzleGradeRepository],
+  exports: [
+    DrizzleEvaluationRepository,
+    DrizzleGradeRepository,
+    DrizzleActivityRepository,
+    DrizzleFinalGradeRepository,
+  ],
 })
 export class AssessmentModule {}

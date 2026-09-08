@@ -17,6 +17,43 @@ import { courses, lessons } from './catalog';
 import { enrollments } from './enrollment';
 import { users } from './identity';
 
+// Actividades manuales del curso (trabajos prácticos, exposiciones, etc.)
+// El docente crea la actividad una vez y luego califica a cada estudiante.
+export const courseActivities = pgTable(
+  'course_activities',
+  {
+    id: idColumn(),
+    courseId: uuid('course_id')
+      .notNull()
+      .references(() => courses.id, { onDelete: 'cascade' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    title: varchar('title', { length: 200 }).notNull(),
+    description: text('description'),
+    // Categoría para la ponderación de la nota final: 'practica' | 'actividad'.
+    // (Los exámenes son su propia categoría y viven en `evaluations`.)
+    category: varchar('category', { length: 20 }).notNull().default('actividad'),
+    maxScore: numeric('max_score', { precision: 5, scale: 2 }).notNull().default('100'),
+    weight: numeric('weight', { precision: 3, scale: 2 }).notNull().default('1'),
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => ({
+    courseIdx: index('course_activities_course_idx').on(t.courseId),
+  }),
+);
+
+// Pesos (%) de cada categoría para la nota final ponderada del curso. Una fila
+// por curso; si no existe, se usan los valores por defecto 40/30/30.
+export const courseGradeWeights = pgTable('course_grade_weights', {
+  courseId: uuid('course_id')
+    .primaryKey()
+    .references(() => courses.id, { onDelete: 'cascade' }),
+  examWeight: numeric('exam_weight', { precision: 5, scale: 2 }).notNull().default('40'),
+  practiceWeight: numeric('practice_weight', { precision: 5, scale: 2 }).notNull().default('30'),
+  activityWeight: numeric('activity_weight', { precision: 5, scale: 2 }).notNull().default('30'),
+  ...timestamps,
+});
+
 // Calificaciones (docente → estudiante en curso/sección/clase)
 export const grades = pgTable(
   'grades',
@@ -32,6 +69,7 @@ export const grades = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: 'cascade' }),
     lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'set null' }),
+    activityId: uuid('activity_id').references(() => courseActivities.id, { onDelete: 'cascade' }),
     enrollmentId: uuid('enrollment_id')
       .notNull()
       .references(() => enrollments.id, { onDelete: 'cascade' }),
@@ -47,6 +85,7 @@ export const grades = pgTable(
     studentIdx: index('grades_student_idx').on(t.studentId),
     courseIdx: index('grades_course_idx').on(t.courseId),
     enrollmentIdx: index('grades_enrollment_idx').on(t.enrollmentId),
+    activityIdx: index('grades_activity_idx').on(t.activityId),
   }),
 );
 
@@ -154,11 +193,21 @@ export const evaluationAnswers = pgTable(
 );
 
 // Relaciones
+export const courseActivitiesRelations = relations(courseActivities, ({ one, many }) => ({
+  course: one(courses, { fields: [courseActivities.courseId], references: [courses.id] }),
+  creator: one(users, { fields: [courseActivities.createdBy], references: [users.id] }),
+  grades: many(grades),
+}));
+
 export const gradesRelations = relations(grades, ({ one }) => ({
   student: one(users, { fields: [grades.studentId], references: [users.id] }),
   teacher: one(users, { fields: [grades.teacherId], references: [users.id] }),
   course: one(courses, { fields: [grades.courseId], references: [courses.id] }),
   lesson: one(lessons, { fields: [grades.lessonId], references: [lessons.id] }),
+  activity: one(courseActivities, {
+    fields: [grades.activityId],
+    references: [courseActivities.id],
+  }),
   enrollment: one(enrollments, { fields: [grades.enrollmentId], references: [enrollments.id] }),
 }));
 
@@ -201,6 +250,8 @@ export const evaluationAnswersRelations = relations(evaluationAnswers, ({ one })
   }),
 }));
 
+export type CourseActivity = typeof courseActivities.$inferSelect;
+export type CourseGradeWeights = typeof courseGradeWeights.$inferSelect;
 export type Grade = typeof grades.$inferSelect;
 export type Evaluation = typeof evaluations.$inferSelect;
 export type EvaluationQuestion = typeof evaluationQuestions.$inferSelect;

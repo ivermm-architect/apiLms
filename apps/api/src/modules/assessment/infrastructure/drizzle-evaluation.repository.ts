@@ -1,6 +1,6 @@
 import { schema, Database } from '@cieba/db';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { DATABASE } from '../../../core/database/database.module';
 
@@ -246,6 +246,7 @@ export class DrizzleEvaluationRepository {
         evaluationTitle: schema.evaluations.title,
         questionId: schema.evaluationQuestions.id,
         questionText: schema.evaluationQuestions.questionText,
+        expectedAnswer: schema.evaluationQuestions.correctAnswer,
         maxPoints: schema.evaluationQuestions.points,
         answer: schema.evaluationAnswers.answer,
         studentId: schema.evaluationAttempts.studentId,
@@ -277,6 +278,164 @@ export class DrizzleEvaluationRepository {
         ),
       )
       .orderBy(asc(schema.evaluationAttempts.submittedAt));
+  }
+
+  /**
+   * Resultados agregados por evaluación de un curso (panel del docente).
+   * Toma el MEJOR intento enviado de cada estudiante y calcula, por evaluación:
+   * nº de preguntas, estudiantes que la rindieron, promedio de porcentajes y
+   * cuántos la aprobaron.
+   */
+  async listCourseEvaluationResults(courseId: string) {
+    const evals = await this.db
+      .select({
+        evaluationId: schema.evaluations.id,
+        title: schema.evaluations.title,
+        difficulty: schema.evaluations.difficulty,
+        passingScore: schema.evaluations.passingScore,
+      })
+      .from(schema.evaluations)
+      .where(and(eq(schema.evaluations.courseId, courseId), eq(schema.evaluations.isActive, true)))
+      .orderBy(desc(schema.evaluations.createdAt));
+
+    if (evals.length === 0) return [];
+
+    const attempts = await this.db
+      .select({
+        evaluationId: schema.evaluationAttempts.evaluationId,
+        studentId: schema.evaluationAttempts.studentId,
+        percentage: schema.evaluationAttempts.percentage,
+        isPassed: schema.evaluationAttempts.isPassed,
+      })
+      .from(schema.evaluationAttempts)
+      .innerJoin(
+        schema.evaluations,
+        eq(schema.evaluationAttempts.evaluationId, schema.evaluations.id),
+      )
+      .where(
+        and(
+          eq(schema.evaluations.courseId, courseId),
+          isNotNull(schema.evaluationAttempts.submittedAt),
+        ),
+      );
+
+    const questionRows = await this.db
+      .select({ evaluationId: schema.evaluationQuestions.evaluationId })
+      .from(schema.evaluationQuestions)
+      .innerJoin(
+        schema.evaluations,
+        eq(schema.evaluationQuestions.evaluationId, schema.evaluations.id),
+      )
+      .where(eq(schema.evaluations.courseId, courseId));
+
+    const questionCount = new Map<string, number>();
+    for (const q of questionRows) {
+      questionCount.set(q.evaluationId, (questionCount.get(q.evaluationId) ?? 0) + 1);
+    }
+
+    // Mejor intento (mayor porcentaje) por (evaluación, estudiante).
+    const best = new Map<string, { pct: number; passed: boolean }>();
+    for (const a of attempts) {
+      const key = `${a.evaluationId}:${a.studentId}`;
+      const pct = Number(a.percentage ?? 0);
+      const prev = best.get(key);
+      if (!prev || pct > prev.pct) best.set(key, { pct, passed: a.isPassed });
+    }
+
+    return evals.map((e) => {
+      const pcts: number[] = [];
+      let passed = 0;
+      for (const [key, val] of best) {
+        if (key.startsWith(`${e.evaluationId}:`)) {
+          pcts.push(val.pct);
+          if (val.passed) passed++;
+        }
+      }
+      const studentsSubmitted = pcts.length;
+      const averagePercentage =
+        studentsSubmitted > 0
+          ? Number((pcts.reduce((s, v) => s + v, 0) / studentsSubmitted).toFixed(1))
+          : null;
+      return {
+        evaluationId: e.evaluationId,
+        title: e.title,
+        difficulty: e.difficulty,
+        passingScore: e.passingScore,
+        questionCount: questionCount.get(e.evaluationId) ?? 0,
+        studentsSubmitted,
+        averagePercentage,
+        passedCount: passed,
+      };
+    });
+  }
+
+  /**
+   * Detalle por estudiante de una evaluación: cada estudiante que la RINDIÓ con
+   * su MEJOR intento (mayor porcentaje) y cuántos intentos hizo. Sirve para el
+   * detalle expandible "quién rindió".
+   */
+  async listEvaluationStudentResults(evaluationId: string) {
+    const attempts = await this.db
+      .select({
+        studentId: schema.evaluationAttempts.studentId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        score: schema.evaluationAttempts.score,
+        maxScore: schema.evaluationAttempts.maxScore,
+        percentage: schema.evaluationAttempts.percentage,
+        isPassed: schema.evaluationAttempts.isPassed,
+        submittedAt: schema.evaluationAttempts.submittedAt,
+      })
+      .from(schema.evaluationAttempts)
+      .innerJoin(schema.users, eq(schema.evaluationAttempts.studentId, schema.users.id))
+      .where(
+        and(
+          eq(schema.evaluationAttempts.evaluationId, evaluationId),
+          isNotNull(schema.evaluationAttempts.submittedAt),
+        ),
+      );
+
+    type Row = {
+      studentId: string;
+      studentName: string;
+      attempts: number;
+      score: string | null;
+      maxScore: string | null;
+      percentage: number | null;
+      isPassed: boolean;
+      submittedAt: Date | null;
+    };
+
+    const byStudent = new Map<string, Row>();
+    for (const a of attempts) {
+      const pct = Number(a.percentage ?? 0);
+      const prev = byStudent.get(a.studentId);
+      if (!prev) {
+        byStudent.set(a.studentId, {
+          studentId: a.studentId,
+          studentName: `${a.firstName} ${a.lastName}`.trim(),
+          attempts: 1,
+          score: a.score,
+          maxScore: a.maxScore,
+          percentage: a.percentage != null ? pct : null,
+          isPassed: a.isPassed,
+          submittedAt: a.submittedAt,
+        });
+        continue;
+      }
+      prev.attempts += 1;
+      if (pct > Number(prev.percentage ?? -1)) {
+        prev.score = a.score;
+        prev.maxScore = a.maxScore;
+        prev.percentage = a.percentage != null ? pct : null;
+        prev.isPassed = a.isPassed;
+        prev.submittedAt = a.submittedAt;
+      }
+    }
+
+    return [...byStudent.values()].sort(
+      (x, y) => Number(y.percentage ?? 0) - Number(x.percentage ?? 0),
+    );
   }
 
   /** courseId de la evaluación a la que pertenece una respuesta (para ownership). */

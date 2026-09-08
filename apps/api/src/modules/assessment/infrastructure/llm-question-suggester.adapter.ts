@@ -70,7 +70,7 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
       const content = payload.choices?.[0]?.message?.content;
       if (!content) return [];
 
-      return this.parse(content, input.difficulty).slice(0, count);
+      return this.parse(content, input.difficulty, input.questionType).slice(0, count);
     } catch (err) {
       this.logger.warn(
         `IA preguntas deshabilitada por error: ${err instanceof Error ? err.message : String(err)}`,
@@ -103,15 +103,26 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
         : input.questionType === 'true_false'
           ? 'verdadero/falso'
           : 'respuesta abierta';
+    const typeRule =
+      input.questionType === 'true_false'
+        ? 'IMPORTANTE: "questionText" debe ser una AFIRMACIÓN declarativa sobre el tema (NO una pregunta; NO uses "¿" ni "?"). "correctAnswer" debe ser EXACTAMENTE "Verdadero" o "Falso" según si la afirmación es cierta. Deja "options" vacío. Incluye afirmaciones verdaderas y otras falsas.'
+        : input.questionType === 'multiple_choice'
+          ? '"options" DEBE tener 4 elementos con EXACTAMENTE uno isCorrect=true.'
+          : 'Es respuesta abierta: "options" debe ir vacío y "correctAnswer" contiene la respuesta esperada.';
     return [
       `Tema/contenido base:\n${input.topic}`.slice(0, 6000),
-      `Genera ${input.count} pregunta(s) de tipo "${input.questionType}" (${typeLabel}).`,
+      `Genera ${input.count} pregunta(s) de tipo "${input.questionType}" (${typeLabel}). TODAS deben ser de ese tipo.`,
+      typeRule,
       `Nivel de dificultad: ${level}.`,
       'Devuelve SOLO el JSON con la clave "questions".',
     ].join('\n\n');
   }
 
-  private parse(content: string, difficulty: SuggestedDifficulty): SuggestedQuestion[] {
+  private parse(
+    content: string,
+    difficulty: SuggestedDifficulty,
+    requestedType: SuggestedQuestionType,
+  ): SuggestedQuestion[] {
     let raw: unknown;
     try {
       raw = JSON.parse(content);
@@ -121,7 +132,7 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
     const list = this.extractList(raw);
     const out: SuggestedQuestion[] = [];
     for (const item of list) {
-      const q = this.parseOne(item, difficulty);
+      const q = this.parseOne(item, difficulty, requestedType);
       if (q) out.push(q);
     }
     return out;
@@ -137,26 +148,47 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
     return [];
   }
 
-  private parseOne(item: unknown, difficulty: SuggestedDifficulty): SuggestedQuestion | null {
+  private parseOne(
+    item: unknown,
+    difficulty: SuggestedDifficulty,
+    requestedType: SuggestedQuestionType,
+  ): SuggestedQuestion | null {
     if (!item || typeof item !== 'object') return null;
     const obj = item as Record<string, unknown>;
 
-    const questionText = typeof obj.questionText === 'string' ? obj.questionText.trim() : '';
+    // Algunos modelos usan "statement" en vez de "questionText" (típico en V/F).
+    const rawText = obj.questionText ?? obj.statement;
+    const questionText = typeof rawText === 'string' ? rawText.trim() : '';
     if (!questionText) return null;
 
-    const questionType = this.normalizeType(obj.questionType);
-    const options = this.parseOptions(obj.options, questionType);
+    // Respetamos SIEMPRE el tipo que pidió el docente; los modelos suelen
+    // etiquetar mal (p. ej. devuelven opción múltiple rotulada como V/F).
+    const questionType = requestedType;
+    let options = this.parseOptions(obj.options, questionType);
 
-    // Opción múltiple sin exactamente una correcta → se descarta (dato no confiable).
+    // "correctAnswer" o "answer" (variante que usan algunos modelos).
+    const rawAnswer = obj.correctAnswer ?? obj.answer;
+    const correctAnswer =
+      typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer.trim() : null;
+
+    // Opción múltiple: exige 4 opciones con exactamente una correcta.
     if (questionType === 'multiple_choice') {
       const correct = options.filter((o) => o.isCorrect).length;
       if (options.length < 2 || correct !== 1) return null;
     }
 
-    const correctAnswer =
-      typeof obj.correctAnswer === 'string' && obj.correctAnswer.trim()
-        ? obj.correctAnswer.trim()
-        : null;
+    // Verdadero/Falso: forzamos EXACTAMENTE 2 opciones (Verdadero/Falso).
+    // Si no podemos determinar la respuesta, se descarta (evita el caso de una
+    // pregunta de opción múltiple mal etiquetada como V/F).
+    if (questionType === 'true_false') {
+      const truthIsCorrect = this.resolveTrueFalse(options, correctAnswer);
+      if (truthIsCorrect === null) return null;
+      options = [
+        { id: randomUUID(), text: 'Verdadero', isCorrect: truthIsCorrect },
+        { id: randomUUID(), text: 'Falso', isCorrect: !truthIsCorrect },
+      ];
+    }
+
     const explanation =
       typeof obj.explanation === 'string' && obj.explanation.trim() ? obj.explanation.trim() : null;
     const justification =
@@ -168,16 +200,38 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
       questionText,
       questionType,
       options,
-      correctAnswer,
+      correctAnswer: questionType === 'true_false' ? null : correctAnswer,
       explanation,
       difficulty,
       justification,
     };
   }
 
-  private normalizeType(value: unknown): SuggestedQuestionType {
-    if (value === 'true_false' || value === 'open' || value === 'multiple_choice') return value;
-    return 'multiple_choice';
+  /**
+   * Deduce si la afirmación V/F es verdadera. Busca en `correctAnswer` y en el
+   * texto de la opción marcada como correcta. Devuelve null si no se puede
+   * determinar (la pregunta se descartará por no ser un V/F válido).
+   */
+  private resolveTrueFalse(
+    options: SuggestedOption[],
+    correctAnswer: string | null,
+  ): boolean | null {
+    const interpret = (raw: string): boolean | null => {
+      const t = raw.trim().toLowerCase();
+      if (/^(verdad|true|^v$|cierto|si|sí)/.test(t)) return true;
+      if (/^(fals|false|^f$|no)/.test(t)) return false;
+      return null;
+    };
+    if (correctAnswer) {
+      const fromAnswer = interpret(correctAnswer);
+      if (fromAnswer !== null) return fromAnswer;
+    }
+    const marked = options.find((o) => o.isCorrect);
+    if (marked) {
+      const fromOption = interpret(marked.text);
+      if (fromOption !== null) return fromOption;
+    }
+    return null;
   }
 
   private parseOptions(value: unknown, type: SuggestedQuestionType): SuggestedOption[] {
@@ -187,9 +241,13 @@ export class LlmQuestionSuggesterAdapter implements QuestionSuggesterPort {
     for (const o of value) {
       if (!o || typeof o !== 'object') continue;
       const oo = o as Record<string, unknown>;
-      const text = typeof oo.text === 'string' ? oo.text.trim() : '';
+      // Los modelos locales usan claves distintas para el texto de la opción
+      // (text, optionText, option, label, value); aceptamos cualquiera.
+      const rawText = oo.text ?? oo.optionText ?? oo.option ?? oo.label ?? oo.value;
+      const text = typeof rawText === 'string' ? rawText.trim() : '';
       if (!text) continue;
-      out.push({ id: randomUUID(), text, isCorrect: Boolean(oo.isCorrect) });
+      const isCorrect = Boolean(oo.isCorrect ?? oo.correct ?? oo.is_correct);
+      out.push({ id: randomUUID(), text, isCorrect });
     }
     return out;
   }

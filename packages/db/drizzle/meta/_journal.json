@@ -113,6 +113,20 @@
       "when": 1787508056381,
       "tag": "20260823180056_light_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788899295735,
+      "tag": "20260908202815_nostalgic_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788900195132,
+      "tag": "20260908204315_clammy_triton",
+      "breakpoints": true
     }
   ]
 }

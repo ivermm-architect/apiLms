@@ -22,20 +22,31 @@ import {
   AnswerFeedbackSuggesterPort,
 } from '../domain/ports/answer-feedback-suggester.port';
 import { QUESTION_SUGGESTER, QuestionSuggesterPort } from '../domain/ports/question-suggester.port';
+import { DrizzleActivityRepository } from '../infrastructure/drizzle-activity.repository';
 import { DrizzleEvaluationRepository } from '../infrastructure/drizzle-evaluation.repository';
+import { DrizzleFinalGradeRepository } from '../infrastructure/drizzle-final-grade.repository';
 import { DrizzleGradeRepository } from '../infrastructure/drizzle-grade.repository';
 
 import {
   AddQuestionInput,
+  CreateActivityInput,
   CreateEvaluationInput,
   GradeStudentInput,
+  SetActivityGradeInput,
+  SetCourseGradeWeightsInput,
   SubmitEvaluationInput,
   SuggestQuestionsInput,
 } from './dto/assessment.input';
 import {
+  ActivityGradeRowType,
+  ActivityType,
+  CourseGradeWeightsType,
   EvaluationAttemptType,
   EvaluationQuestionType,
+  EvaluationResultType,
+  EvaluationStudentResultType,
   EvaluationType,
+  FinalGradeType,
   GradeType,
   PendingOpenAnswerType,
   SuggestedQuestionType,
@@ -47,6 +58,8 @@ export class AssessmentResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly grades: DrizzleGradeRepository,
+    private readonly activities: DrizzleActivityRepository,
+    private readonly finalGrades: DrizzleFinalGradeRepository,
     private readonly evaluations: DrizzleEvaluationRepository,
     private readonly courseOwnership: CourseOwnershipService,
     @Inject(DATABASE) private readonly db: Database,
@@ -66,6 +79,15 @@ export class AssessmentResolver {
     await this.courseOwnership.assertOwnership(row.courseId, user);
   }
 
+  /** Verifica que la actividad exista y pertenezca a un curso del docente.
+   *  Devuelve el registro de la actividad para reutilizar su título/sobre/peso. */
+  private async assertActivityOwnership(activityId: string, user: JwtPayload) {
+    const activity = await this.activities.findById(activityId);
+    if (!activity) throw new NotFoundException('Actividad no encontrada');
+    await this.courseOwnership.assertOwnership(activity.courseId, user);
+    return activity;
+  }
+
   // ---------- Grades ----------
   @Query(() => [GradeType])
   myGrades(
@@ -73,6 +95,180 @@ export class AssessmentResolver {
     @Args('courseId', { nullable: true }) courseId?: string,
   ): Promise<GradeType[]> {
     return this.grades.listByStudent(user.sub, courseId) as unknown as Promise<GradeType[]>;
+  }
+
+  @Query(() => [GradeType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async courseGrades(
+    @Args('courseId') courseId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<GradeType[]> {
+    await this.courseOwnership.assertOwnership(courseId, user);
+    return this.grades.listByCourse(courseId) as unknown as Promise<GradeType[]>;
+  }
+
+  // ---------- Nota final ponderada por categorías ----------
+  /** Pesos (%) de las categorías del curso. Legible por cualquier usuario
+   *  autenticado (el estudiante los ve en su boletín). */
+  @Query(() => CourseGradeWeightsType)
+  async courseGradeWeights(@Args('courseId') courseId: string): Promise<CourseGradeWeightsType> {
+    const w = await this.finalGrades.getWeights(courseId);
+    return { courseId, ...w };
+  }
+
+  @Mutation(() => CourseGradeWeightsType)
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async setCourseGradeWeights(
+    @Args('input') input: SetCourseGradeWeightsInput,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CourseGradeWeightsType> {
+    await this.courseOwnership.assertOwnership(input.courseId, user);
+    const w = await this.finalGrades.setWeights(input.courseId, {
+      examWeight: input.examWeight,
+      practiceWeight: input.practiceWeight,
+      activityWeight: input.activityWeight,
+    });
+    return { courseId: input.courseId, ...w };
+  }
+
+  /** Notas finales ponderadas de todos los estudiantes del curso (docente). */
+  @Query(() => [FinalGradeType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async courseFinalGrades(
+    @Args('courseId') courseId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<FinalGradeType[]> {
+    await this.courseOwnership.assertOwnership(courseId, user);
+    return this.finalGrades.computeCourseFinalGrades(courseId) as unknown as Promise<
+      FinalGradeType[]
+    >;
+  }
+
+  /** Nota final ponderada del propio estudiante en un curso (su boletín). */
+  @Query(() => FinalGradeType, { nullable: true })
+  async myFinalGrade(
+    @Args('courseId') courseId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<FinalGradeType | null> {
+    return this.finalGrades.computeStudentFinalGrade(
+      courseId,
+      user.sub,
+    ) as unknown as Promise<FinalGradeType | null>;
+  }
+
+  // ---------- Activities (trabajos prácticos, exposiciones, etc.) ----------
+  /** Actividades del curso con su avance de calificación (para el docente). */
+  @Query(() => [ActivityType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async courseActivities(
+    @Args('courseId') courseId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ActivityType[]> {
+    await this.courseOwnership.assertOwnership(courseId, user);
+    return this.activities.listByCourse(courseId) as unknown as Promise<ActivityType[]>;
+  }
+
+  /** Grilla de calificación: todos los matriculados con su nota (o Pendiente). */
+  @Query(() => [ActivityGradeRowType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async activityGrades(
+    @Args('activityId') activityId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ActivityGradeRowType[]> {
+    const activity = await this.assertActivityOwnership(activityId, user);
+    return this.activities.listActivityGrades(activityId, activity.courseId) as unknown as Promise<
+      ActivityGradeRowType[]
+    >;
+  }
+
+  @Mutation(() => ActivityType)
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async createActivity(
+    @Args('input') input: CreateActivityInput,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ActivityType> {
+    await this.courseOwnership.assertOwnership(input.courseId, user);
+    const row = await this.activities.create({ ...input, createdBy: user.sub });
+    await this.audit
+      .log({
+        userId: user.sub,
+        action: 'create',
+        entityType: 'activity',
+        entityId: row.id,
+        metadata: {
+          description: `Actividad creada: ${row.title}`,
+          courseId: input.courseId,
+          title: row.title,
+        },
+      })
+      .catch(() => {});
+    return { ...row, totalStudents: 0, gradedCount: 0 } as unknown as ActivityType;
+  }
+
+  @Mutation(() => Boolean)
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async deleteActivity(@Args('id') id: string, @CurrentUser() user: JwtPayload): Promise<boolean> {
+    await this.assertActivityOwnership(id, user);
+    await this.activities.delete(id);
+    await this.audit
+      .log({
+        userId: user.sub,
+        action: 'delete',
+        entityType: 'activity',
+        entityId: id,
+        metadata: { description: 'Actividad eliminada', activityId: id },
+      })
+      .catch(() => {});
+    return true;
+  }
+
+  /** Registra o actualiza la nota de un estudiante para una actividad. */
+  @Mutation(() => GradeType)
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async setActivityGrade(
+    @Args('input') input: SetActivityGradeInput,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<GradeType> {
+    const activity = await this.assertActivityOwnership(input.activityId, user);
+    const [enrollment] = await this.db
+      .select({
+        id: schema.enrollments.id,
+        userId: schema.enrollments.userId,
+        courseId: schema.enrollments.courseId,
+      })
+      .from(schema.enrollments)
+      .where(eq(schema.enrollments.id, input.enrollmentId))
+      .limit(1);
+    if (!enrollment || enrollment.courseId !== activity.courseId) {
+      throw new NotFoundException('Matrícula no encontrada en este curso');
+    }
+    const grade = await this.activities.upsertGrade({
+      activityId: activity.id,
+      studentId: enrollment.userId,
+      teacherId: user.sub,
+      courseId: activity.courseId,
+      enrollmentId: enrollment.id,
+      title: activity.title,
+      score: input.score,
+      maxScore: Number(activity.maxScore),
+      weight: Number(activity.weight),
+      feedback: input.feedback,
+    });
+    await this.audit
+      .log({
+        userId: user.sub,
+        action: 'update',
+        entityType: 'grade',
+        entityId: grade.id,
+        metadata: {
+          description: `Nota de actividad: ${activity.title} (${grade.score}/${grade.maxScore})`,
+          studentId: enrollment.userId,
+          courseId: activity.courseId,
+          activityId: activity.id,
+        },
+      })
+      .catch(() => {});
+    return grade as unknown as GradeType;
   }
 
   @Mutation(() => GradeType)
@@ -119,10 +315,12 @@ export class AssessmentResolver {
     @Args('evaluationId') evaluationId: string,
   ): Promise<EvaluationQuestionType[]> {
     const rows = await this.evaluations.listQuestions(evaluationId);
-    // Ocultar qué opción es correcta al estudiante
+    // Ocultar al estudiante qué opción es correcta, la respuesta esperada y la explicación.
     return rows.map((r) => ({
       ...r,
       options: r.options?.map((o) => ({ id: o.id, text: o.text })),
+      correctAnswer: null,
+      explanation: null,
     })) as unknown as EvaluationQuestionType[];
   }
 
@@ -283,6 +481,30 @@ export class AssessmentResolver {
     return rows as unknown as EvaluationAttemptType[];
   }
 
+  /** Resultados agregados por evaluación del curso (panel del docente). */
+  @Query(() => [EvaluationResultType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async courseEvaluationResults(
+    @Args('courseId') courseId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<EvaluationResultType[]> {
+    await this.courseOwnership.assertOwnership(courseId, user);
+    const rows = await this.evaluations.listCourseEvaluationResults(courseId);
+    return rows as unknown as EvaluationResultType[];
+  }
+
+  /** Detalle por estudiante de una evaluación (quién la rindió y con qué nota). */
+  @Query(() => [EvaluationStudentResultType])
+  @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
+  async evaluationStudentResults(
+    @Args('evaluationId') evaluationId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<EvaluationStudentResultType[]> {
+    await this.assertEvaluationOwnership(evaluationId, user);
+    const rows = await this.evaluations.listEvaluationStudentResults(evaluationId);
+    return rows as unknown as EvaluationStudentResultType[];
+  }
+
   /** Bandeja del docente: respuestas abiertas pendientes de calificar en un curso. */
   @Query(() => [PendingOpenAnswerType])
   @RequirePermissions(PERMISSIONS.EVALUATION_MANAGE)
@@ -299,6 +521,7 @@ export class AssessmentResolver {
       evaluationTitle: r.evaluationTitle,
       questionId: r.questionId,
       questionText: r.questionText,
+      expectedAnswer: r.expectedAnswer,
       maxPoints: String(r.maxPoints),
       answer: r.answer,
       studentId: r.studentId,

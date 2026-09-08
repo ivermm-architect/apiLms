@@ -2,6 +2,33 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type ActivityGradeRowType {
+  avatarUrl: String
+  enrollmentId: String!
+  feedback: String
+  gradeId: String
+  gradedAt: DateTime
+  maxScore: String
+  score: String
+  studentId: String!
+  studentName: String!
+}
+
+type ActivityType {
+  category: String!
+  courseId: String!
+  createdAt: DateTime!
+  createdBy: String
+  description: String
+  dueDate: DateTime
+  gradedCount: Int!
+  id: String!
+  maxScore: String!
+  title: String!
+  totalStudents: Int!
+  weight: String!
+}
+
 input AddQuestionInput {
   correctAnswer: String
   evaluationId: String!
@@ -217,6 +244,13 @@ type CompetencyType {
   name: String!
 }
 
+type CourseGradeWeightsType {
+  activityWeight: Float!
+  courseId: String!
+  examWeight: Float!
+  practiceWeight: Float!
+}
+
 type CourseListMeta {
   page: Int!
   pageSize: Int!
@@ -276,6 +310,15 @@ type CourseType {
   totalLessons: Int!
   totalStudents: Int!
   updatedAt: DateTime!
+}
+
+input CreateActivityInput {
+  category: String
+  courseId: String!
+  description: String
+  maxScore: Float
+  title: String!
+  weight: Float
 }
 
 input CreateCompetencyInput {
@@ -390,17 +433,42 @@ type EvaluationAttemptType {
 
 type EvaluationQuestionOption {
   id: String!
+  isCorrect: Boolean
   text: String!
 }
 
 type EvaluationQuestionType {
+  correctAnswer: String
   evaluationId: String!
+  explanation: String
   id: String!
   options: [EvaluationQuestionOption!]
   points: String!
   position: Int!
   questionText: String!
   questionType: String!
+}
+
+type EvaluationResultType {
+  averagePercentage: Float
+  difficulty: String!
+  evaluationId: String!
+  passedCount: Int!
+  passingScore: String!
+  questionCount: Int!
+  studentsSubmitted: Int!
+  title: String!
+}
+
+type EvaluationStudentResultType {
+  attempts: Int!
+  isPassed: Boolean!
+  maxScore: String
+  percentage: Float
+  score: String
+  studentId: String!
+  studentName: String!
+  submittedAt: DateTime
 }
 
 type EvaluationType {
@@ -414,6 +482,17 @@ type EvaluationType {
   passingScore: String!
   timeLimitMinutes: Int
   title: String!
+}
+
+type FinalGradeType {
+  activityAvg: Float
+  avatarUrl: String
+  enrollmentId: String!
+  examAvg: Float
+  finalGrade: Float
+  practiceAvg: Float
+  studentId: String!
+  studentName: String!
 }
 
 input GradeStudentInput {
@@ -584,6 +663,7 @@ type Mutation {
   assignRole(roleName: String!, userId: String!): Boolean!
   bulkCreateStudents(input: BulkCreateStudentsInput!): [BulkResultRow!]!
   changePassword(input: ChangePasswordInput!): Boolean!
+  createActivity(input: CreateActivityInput!): ActivityType!
   createCompetency(input: CreateCompetencyInput!): CompetencyType!
   createCourse(input: CreateCourseInput!): CourseType!
   createEvaluation(input: CreateEvaluationInput!): EvaluationType!
@@ -592,6 +672,7 @@ type Mutation {
   createSchedule(input: CreateScheduleInput!): CourseScheduleType!
   createSection(input: CreateSectionInput!): SectionType!
   createUser(input: CreateUserInput!): CreatedUserType!
+  deleteActivity(id: String!): Boolean!
   deleteCompetency(id: String!): Boolean!
   deleteEvaluation(id: String!): Boolean!
   deleteEvaluationQuestion(id: String!): Boolean!
@@ -611,7 +692,9 @@ type Mutation {
   revokeRole(roleName: String!, userId: String!): Boolean!
   revokeSession(id: String!): Boolean!
   runAlertScan: Int!
+  setActivityGrade(input: SetActivityGradeInput!): GradeType!
   setConfig(key: String!, value: String!): Boolean!
+  setCourseGradeWeights(input: SetCourseGradeWeightsInput!): CourseGradeWeightsType!
   setUserStatus(status: String!, userId: String!): Boolean!
   startEvaluation(enrollmentId: String!, evaluationId: String!): EvaluationAttemptType!
   submitEvaluation(input: SubmitEvaluationInput!): EvaluationAttemptType!
@@ -636,6 +719,7 @@ type PendingOpenAnswerType {
   enrollmentId: String!
   evaluationId: String!
   evaluationTitle: String!
+  expectedAnswer: String
   maxPoints: String!
   questionId: String!
   questionText: String!
@@ -654,6 +738,7 @@ type PublicBrandingType {
 }
 
 type Query {
+  activityGrades(activityId: String!): [ActivityGradeRowType!]!
   adminCourses(curriculumId: String, instructorId: String, page: Int = 1, pageSize: Int = 20, search: String, status: String): AdminCourseListType!
   adminDashboardOverview: AdminDashboardOverviewType!
   adminUsers(cohortYear: Int, page: Int = 1, pageSize: Int = 20, role: String, search: String, status: String): AdminUserListType!
@@ -662,8 +747,13 @@ type Query {
   auditLogs(entityType: String, userId: String): [AuditLogType!]!
   cohortReport: [CohortReportRowType!]!
   course(slug: String!): CourseType!
+  courseActivities(courseId: String!): [ActivityType!]!
   courseCompetencies(courseId: String!): [CompetencyType!]!
+  courseEvaluationResults(courseId: String!): [EvaluationResultType!]!
   courseEvaluations(courseId: String!): [EvaluationType!]!
+  courseFinalGrades(courseId: String!): [FinalGradeType!]!
+  courseGradeWeights(courseId: String!): CourseGradeWeightsType!
+  courseGrades(courseId: String!): [GradeType!]!
   coursePendingAnswers(courseId: String!): [PendingOpenAnswerType!]!
   courseScheduleBlocks(courseId: String!): [CourseScheduleType!]!
   courseSchedules(courseId: String!): [CourseScheduleType!]!
@@ -673,6 +763,7 @@ type Query {
   evaluation(id: String!): EvaluationType
   evaluationQuestions(evaluationId: String!): [EvaluationQuestionType!]!
   evaluationQuestionsForOwner(evaluationId: String!): [EvaluationQuestionType!]!
+  evaluationStudentResults(evaluationId: String!): [EvaluationStudentResultType!]!
   getConfig(key: String!): String
   instructorAnalytics: InstructorAnalyticsType!
   instructorAtRiskStudents: [InstructorAtRiskStudentType!]!
@@ -683,6 +774,7 @@ type Query {
   myCourseReport(courseId: String!): StudentReportType!
   myEnrollments: [EnrollmentType!]!
   myEvaluationAttempts(evaluationId: String!): [EvaluationAttemptType!]!
+  myFinalGrade(courseId: String!): FinalGradeType
   myGrades(courseId: String): [GradeType!]!
   myInstructorCourses(status: String): [InstructorCourseType!]!
   myLearningReport: LearningReportType!
@@ -753,6 +845,20 @@ type SessionType {
   id: String!
   ipAddress: String
   userAgent: String
+}
+
+input SetActivityGradeInput {
+  activityId: String!
+  enrollmentId: String!
+  feedback: String
+  score: Float!
+}
+
+input SetCourseGradeWeightsInput {
+  activityWeight: Float!
+  courseId: String!
+  examWeight: Float!
+  practiceWeight: Float!
 }
 
 type StudentReportType {
