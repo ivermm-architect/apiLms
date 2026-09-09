@@ -40,7 +40,8 @@
       "cache": false
     },
     "seed": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["^build"]
     },
     "studio": {
       "cache": false,

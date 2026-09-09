@@ -26,6 +26,7 @@
     "push": "drizzle-kit push",
     "seed": "tsx src/seed.ts",
     "seed:validation": "tsx src/seed-validation.ts",
+    "seed:demo": "tsx src/seed-demo.ts",
     "seed:full": "pnpm seed && pnpm seed:validation",
     "backfill:permissions": "tsx src/backfill-permissions.ts",
     "reset": "tsx src/reset.ts",

@@ -1,5 +1,5 @@
 import { PERMISSIONS, ROLE_PERMISSIONS } from '@cieba/shared';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import * as schema from './schema/index';
 
