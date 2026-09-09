@@ -64,6 +64,57 @@ describe('LlmRecommenderAdapter', () => {
       expect(out!.get('c-2')).toBe('Muy recomendado');
     });
 
+    it('descarta la justificación que solo repite el motivo base', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        mockChatResponse(
+          JSON.stringify({
+            reasons: [
+              // Devuelve el motivo base tal cual: no es una reescritura.
+              { courseId: 'c-1', reason: 'base 1' },
+              { courseId: 'c-2', reason: 'Ampliarás tu práctica clínica en planta' },
+            ],
+          }),
+        ) as unknown as Response,
+      );
+
+      const out = await enabledAdapter().explain(items);
+      expect(out!.has('c-1')).toBe(false);
+      expect(out!.get('c-2')).toBe('Ampliarás tu práctica clínica en planta');
+    });
+
+    it('detecta la copia aunque cambien acentos, signos o mayúsculas', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        mockChatResponse(
+          JSON.stringify({ reasons: [{ courseId: 'c-1', reason: '¡BASE 1!' }] }),
+        ) as unknown as Response,
+      );
+
+      // Sin coincidencias útiles se devuelve null y el orquestador conserva la
+      // justificación determinista.
+      expect(await enabledAdapter().explain(items)).toBeNull();
+    });
+
+    it('descarta la justificación que copia el ejemplo del prompt', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        mockChatResponse(
+          JSON.stringify({
+            reasons: [
+              {
+                courseId: 'c-1',
+                reason:
+                  'Aquí afianzarás el cálculo de dosis y las vías de administración, justo lo ' +
+                  'que hoy se te resiste al medicar.',
+              },
+            ],
+          }),
+        ) as unknown as Response,
+      );
+
+      // Es el ejemplo del system prompt: no describe al curso c-1 y acabaría
+      // mostrándose como si fuera su justificación.
+      expect(await enabledAdapter().explain(items)).toBeNull();
+    });
+
     it('ignora courseId desconocidos y entradas vacías', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         mockChatResponse(

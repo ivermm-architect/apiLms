@@ -124,13 +124,37 @@ describe('LlmQuestionSuggesterAdapter', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       mockChatResponse(
         JSON.stringify({
-          questions: [{ questionText: '¿Verdadero o falso?', questionType: 'true_false' }],
+          questions: [
+            {
+              questionText: 'La higiene de manos es la medida más eficaz contra las IAAS.',
+              questionType: 'true_false',
+              // Sin `correctAnswer` el adaptador descarta la pregunta por no poder
+              // resolver el V/F, y nunca se llegaría a evaluar la justificación.
+              correctAnswer: 'Verdadero',
+            },
+          ],
         }),
       ) as unknown as Response,
     );
 
     const out = await enabledAdapter().suggest({ ...INPUT, questionType: 'true_false' });
+    expect(out).toHaveLength(1);
     expect(out[0]!.justification).toBeTruthy();
+  });
+
+  it('descarta V/F cuya respuesta no puede determinarse', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockChatResponse(
+        JSON.stringify({
+          questions: [{ questionText: '¿Verdadero o falso?', questionType: 'true_false' }],
+        }),
+      ) as unknown as Response,
+    );
+
+    // Sin opciones ni respuesta no hay forma de saber si el enunciado es
+    // verdadero o falso: se descarta en vez de proponer un ítem incalificable
+    // (protege del caso de opción múltiple mal rotulada como V/F).
+    expect(await enabledAdapter().suggest({ ...INPUT, questionType: 'true_false' })).toEqual([]);
   });
 
   it('devuelve [] ante JSON inválido', async () => {

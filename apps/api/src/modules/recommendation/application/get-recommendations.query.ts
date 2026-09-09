@@ -53,8 +53,12 @@ export class GetRecommendationsHandler implements IQueryHandler<
     // Capa IA opcional (solo reescribe las justificaciones). NO se espera al
     // modelo en la petición: se sirve la versión determinista al instante y la
     // IA pule el texto en segundo plano; en la siguiente carga aparece pulido.
-    const hash = stableHash(ranked.map((r) => r.courseId).join(','));
-    const { value } = this.cache.getOrRefresh<RankedRecommendation[]>(
+    // El hash incluye la justificación determinista, no solo el id del curso:
+    // si cambia el desempeño del estudiante cambia el motivo, y el texto de IA
+    // cacheado debe regenerarse. Con solo los ids, una recomendación con nuevo
+    // porcentaje seguiría mostrando la redacción vieja.
+    const hash = stableHash(ranked.map((r) => `${r.courseId}:${r.reason}`).join(','));
+    const { value, pending } = this.cache.getOrRefresh<RankedRecommendation[]>(
       `recommendations:${query.userId}`,
       hash,
       async () => {
@@ -74,7 +78,8 @@ export class GetRecommendationsHandler implements IQueryHandler<
       },
     );
 
-    // Con texto IA cacheado, o determinista si aún no está listo.
-    return value ?? ranked;
+    // Con texto IA cacheado, o determinista si aún no está listo. `aiPending`
+    // le dice a la UI cuál de los dos está viendo.
+    return (value ?? ranked).map((r) => ({ ...r, aiPending: pending }));
   }
 }

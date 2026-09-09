@@ -29,7 +29,9 @@ export class RecommendationResolver {
     const result = await this.queryBus.execute<GetRecommendationsQuery, RankedRecommendation[]>(
       new GetRecommendationsQuery(user.sub, limit ?? 6),
     );
-    return result;
+    // `aiPending` es opcional en el dominio (lo fija la capa de aplicación);
+    // aquí se normaliza para cumplir el contrato no-nulo del esquema GraphQL.
+    return result.map((r) => ({ ...r, aiPending: r.aiPending ?? false }));
   }
 
   /**

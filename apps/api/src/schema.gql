@@ -800,6 +800,7 @@ input QuestionOptionInput {
 }
 
 type RecommendedCourseType {
+  aiPending: Boolean!
   courseId: String!
   coverUrl: String
   level: String!

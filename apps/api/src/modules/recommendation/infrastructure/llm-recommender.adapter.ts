@@ -7,6 +7,12 @@ import { ExplainItem, RecommenderExplainerPort } from '../domain/ports/recommend
 const DEFAULT_TIMEOUT_MS = 30000;
 // Límite defensivo de longitud por justificación reescrita.
 const MAX_REASON_LEN = 240;
+// Ejemplo resuelto que se le muestra al modelo. Un modelo pequeño tiende a
+// devolverlo tal cual, así que además de mostrarlo hay que RECHAZARLO en la
+// respuesta: si no, acaba asignado a un curso al que no corresponde.
+const FEW_SHOT_OUTPUT =
+  'Aquí afianzarás el cálculo de dosis y las vías de administración, justo lo que hoy ' +
+  'se te resiste al medicar.';
 
 /**
  * Adaptador de EXPLICACIÓN de recomendaciones asistida por IA, contra una API
@@ -42,17 +48,28 @@ export class LlmRecommenderAdapter implements RecommenderExplainerPort {
         },
         body: JSON.stringify({
           model,
-          temperature: 0.2,
+          temperature: 0.6,
           response_format: { type: 'json_object' },
           messages: [
             {
               role: 'system',
               content:
-                'Eres un tutor académico. Reescribe en español, de forma breve y ' +
-                'motivadora (máx. 200 caracteres), el motivo por el que se recomienda ' +
-                'cada curso a un estudiante, a partir de las competencias que refuerza. ' +
-                'NO inventes cursos ni competencias. Responde SOLO un objeto JSON con la ' +
-                'forma {"reasons":[{"courseId":"...","reason":"..."}]}.',
+                'Eres un tutor académico que se dirige al estudiante en segunda ' +
+                'persona. Para cada curso escribe UNA frase NUEVA, breve y motivadora ' +
+                '(máx. 200 caracteres), que explique en qué le ayudará ese curso según ' +
+                'las competencias que refuerza.\n' +
+                // Sin esta prohibición explícita un modelo pequeño devuelve
+                // `motivo_base` palabra por palabra: es la salida más probable y
+                // parece que la IA no hubiera intervenido.
+                'PROHIBIDO copiar o parafrasear literalmente "motivo_base": es solo el ' +
+                'dato de partida, NO la respuesta. Si tu frase se parece a él, reescríbela.\n' +
+                'No menciones porcentajes ni cifras. No inventes cursos ni competencias.\n' +
+                'Ejemplo — entrada: curso="Farmacología", refuerza=Administración de ' +
+                'medicamentos, motivo_base="Refuerza tu competencia «Administración de ' +
+                `medicamentos» (desempeño actual 50%)". Salida esperada: "${FEW_SHOT_OUTPUT}"\n` +
+                'Ese ejemplo es SOLO una muestra del estilo: no lo reutilices ni lo copies.\n' +
+                'Responde SOLO un objeto JSON con la forma ' +
+                '{"reasons":[{"courseId":"...","reason":"..."}]}.',
             },
             {
               role: 'user',
@@ -114,16 +131,47 @@ export class LlmRecommenderAdapter implements RecommenderExplainerPort {
     const reasons = (raw as { reasons?: unknown }).reasons;
     if (!Array.isArray(reasons)) return null;
 
-    const validIds = new Set(items.map((it) => it.courseId));
+    const baseById = new Map(items.map((it) => [it.courseId, it.baseReason]));
     const out = new Map<string, string>();
     for (const entry of reasons) {
       if (typeof entry !== 'object' || entry === null) continue;
       const obj = entry as Record<string, unknown>;
       const courseId = typeof obj.courseId === 'string' ? obj.courseId : null;
       const reason = typeof obj.reason === 'string' ? obj.reason.trim() : null;
-      if (!courseId || !reason || !validIds.has(courseId)) continue;
+      if (!courseId || !reason || !baseById.has(courseId)) continue;
+      // Un modelo pequeño tiende a devolver `motivo_base` tal cual. Aceptarlo
+      // sería anunciar una reescritura que no ocurrió: se descarta y el curso
+      // conserva su justificación determinista, que es la misma frase pero sin
+      // atribuírsela a la IA.
+      if (isEchoOfBase(reason, baseById.get(courseId)!)) continue;
+      // El modelo también copia el ejemplo del prompt, y entonces lo aplica a un
+      // curso que nada tiene que ver. Se descarta igual que la copia del base.
+      if (isEchoOfBase(reason, FEW_SHOT_OUTPUT)) continue;
       out.set(courseId, reason.slice(0, MAX_REASON_LEN));
     }
     return out.size > 0 ? out : null;
   }
+}
+
+/** Normaliza para comparar textos: sin acentos, signos ni dobles espacios. */
+function normalizeForCompare(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * ¿La "reescritura" es en realidad el motivo base? Compara por contención
+ * mutua tras normalizar, de modo que también detecta la copia con la cifra o
+ * la puntuación cambiadas, no solo la idéntica carácter a carácter.
+ */
+function isEchoOfBase(reason: string, baseReason: string): boolean {
+  const a = normalizeForCompare(reason);
+  const b = normalizeForCompare(baseReason);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
 }

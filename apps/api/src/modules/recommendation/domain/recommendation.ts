@@ -45,6 +45,8 @@ export interface RankedRecommendation {
   matchedCompetencies: string[];
   /** Justificación determinista en español (fallback verificable). */
   reason: string;
+  /** true si la redacción con IA sigue en curso (la fija la capa de aplicación). */
+  aiPending?: boolean;
 }
 
 /** Umbral de desempeño por debajo del cual una competencia se considera débil. */

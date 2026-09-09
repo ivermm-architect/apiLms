@@ -16,4 +16,10 @@ export class RecommendedCourseType {
   @Field(() => [String]) matchedCompetencies!: string[];
   /** Justificación (determinista, o reescrita por IA si está habilitada). */
   @Field() reason!: string;
+  /**
+   * true mientras la IA está reescribiendo las justificaciones en segundo plano
+   * y aún no hay texto pulido. Permite a la UI mostrar el estado "generando…"
+   * en lugar de fingir que el texto determinista es el definitivo.
+   */
+  @Field(() => Boolean) aiPending!: boolean;
 }
