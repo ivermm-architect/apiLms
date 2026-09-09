@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto';
 
+import { schema, eq, Database } from '@cieba/db';
 import { CommandBus } from '@nestjs/cqrs';
-import { schema, eq, type Database } from '@cieba/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { CourseOwnershipService } from '../../src/core/authz/course-ownership.service';
-import { LoginCommand, type LoginResult } from '../../src/modules/auth/application/commands/login.command';
-import { LogoutCommand } from '../../src/modules/auth/application/commands/logout.command';
-import { RefreshCommand } from '../../src/modules/auth/application/commands/refresh.command';
-import type { TokenPair } from '../../src/modules/auth/domain/ports/token.port';
 import { StartEvaluationCommand } from '../../src/modules/assessment/application/commands/start-evaluation.command';
 import { SubmitEvaluationCommand } from '../../src/modules/assessment/application/commands/submit-evaluation.command';
+import {
+  LoginCommand,
+  LoginResult,
+} from '../../src/modules/auth/application/commands/login.command';
+import { LogoutCommand } from '../../src/modules/auth/application/commands/logout.command';
+import { RefreshCommand } from '../../src/modules/auth/application/commands/refresh.command';
+import { TokenPair } from '../../src/modules/auth/domain/ports/token.port';
 import { EnrollCommand } from '../../src/modules/enrollment/application/commands/enroll.command';
 import {
   EntityNotFoundException,
@@ -23,8 +26,8 @@ import {
   resetDb,
   seedScenario,
   TEST_PASSWORD,
-  type Scenario,
-  type TestHarness,
+  Scenario,
+  TestHarness,
 } from './harness';
 
 const sha256 = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -108,9 +111,7 @@ describe('AUTH (login / refresh / logout)', () => {
 
 describe('ENROLLMENT (no doble inscripción)', () => {
   it('inscribe una vez y rechaza la segunda con el mismo usuario/curso', async () => {
-    const enrollment = await bus.execute(
-      new EnrollCommand(scn.studentNoEnrollId, scn.courseId),
-    );
+    const enrollment = await bus.execute(new EnrollCommand(scn.studentNoEnrollId, scn.courseId));
     expect(enrollment.id).toBeTruthy();
 
     await expect(
@@ -170,10 +171,14 @@ describe('ASSESSMENT (rendir evaluación)', () => {
     expect(attempt.submittedAt).toBeNull();
 
     const submitted = await bus.execute(
-      new SubmitEvaluationCommand(attempt.id, [
-        { questionId: scn.mcQuestionId, answer: 'opt-a' },
-        { questionId: scn.tfQuestionId, answer: 'true' },
-      ]),
+      new SubmitEvaluationCommand(
+        attempt.id,
+        [
+          { questionId: scn.mcQuestionId, answer: 'opt-a' },
+          { questionId: scn.tfQuestionId, answer: 'true' },
+        ],
+        scn.studentId,
+      ),
     );
 
     expect(submitted.submittedAt).not.toBeNull();

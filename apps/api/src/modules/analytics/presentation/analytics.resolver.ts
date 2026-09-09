@@ -3,6 +3,7 @@ import { UseGuards } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 
+import { CourseOwnershipService } from '../../../core/authz/course-ownership.service';
 import { CurrentUser } from '../../auth/infrastructure/decorators/current-user.decorator';
 import { RequirePermissions } from '../../auth/infrastructure/decorators/require-permissions.decorator';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
@@ -23,6 +24,7 @@ export class AnalyticsResolver {
   constructor(
     private readonly repo: DrizzleAnalyticsRepository,
     private readonly commandBus: CommandBus,
+    private readonly courseOwnership: CourseOwnershipService,
   ) {}
 
   /** Ejecuta el escaneo de estudiantes en riesgo y devuelve cuántas alertas creó. */
@@ -41,11 +43,11 @@ export class AnalyticsResolver {
     @Args('courseId') courseId: string,
     @CurrentUser() user: JwtPayload,
   ): Promise<StudentReportType> {
-    // Estudiantes solo pueden ver su propio reporte
-    const isSelf = user.sub === studentId;
-    const isPrivileged = user.roles.includes('admin') || user.roles.includes('teacher');
-    if (!isSelf && !isPrivileged) {
-      throw new Error('No puedes ver el reporte de otro estudiante');
+    // El propio estudiante ve su reporte sin más. Cualquier otro (docente) debe
+    // ser dueño del curso — así un docente no puede ver alumnos de cursos ajenos
+    // (IDOR). `assertOwnership` deja pasar a admin y valida instructorId al resto.
+    if (user.sub !== studentId) {
+      await this.courseOwnership.assertOwnership(courseId, user);
     }
     return this.repo.buildStudentCourseReport(studentId, courseId);
   }

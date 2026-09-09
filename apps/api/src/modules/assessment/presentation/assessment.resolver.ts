@@ -463,9 +463,12 @@ export class AssessmentResolver {
   @Mutation(() => EvaluationAttemptType)
   async submitEvaluation(
     @Args('input') input: SubmitEvaluationInput,
+    @CurrentUser() user: JwtPayload,
   ): Promise<EvaluationAttemptType> {
+    // Pasamos el usuario para validar que el intento sea suyo: sin esto un alumno
+    // podía enviar respuestas al intento de otro cambiando el attemptId (IDOR).
     const row = await this.commandBus.execute(
-      new SubmitEvaluationCommand(input.attemptId, input.answers),
+      new SubmitEvaluationCommand(input.attemptId, input.answers, user.sub),
     );
     return row as EvaluationAttemptType;
   }

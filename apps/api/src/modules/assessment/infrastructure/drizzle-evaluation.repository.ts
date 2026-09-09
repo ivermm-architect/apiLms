@@ -132,6 +132,7 @@ export class DrizzleEvaluationRepository {
   async submitAttempt(input: {
     attemptId: string;
     answers: Array<{ questionId: string; answer: string }>;
+    userId: string;
   }) {
     const questions = await this.db
       .select()
@@ -153,6 +154,11 @@ export class DrizzleEvaluationRepository {
       .where(eq(schema.evaluationAttempts.id, input.attemptId))
       .limit(1);
     if (!attempt) throw new Error('Attempt not found');
+    // El intento debe pertenecer a quien lo envía (evita IDOR: enviar respuestas
+    // al intento de otro alumno cambiando el attemptId).
+    if (attempt.studentId !== input.userId) {
+      throw new Error('No autorizado: este intento no te pertenece');
+    }
 
     const allQuestions = await this.listQuestions(attempt.evaluationId);
     for (const q of allQuestions) questionMap.set(q.id, q);

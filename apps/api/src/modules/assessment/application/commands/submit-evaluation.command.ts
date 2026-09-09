@@ -7,6 +7,7 @@ export class SubmitEvaluationCommand implements ICommand {
   constructor(
     public readonly attemptId: string,
     public readonly answers: Array<{ questionId: string; answer: string }>,
+    public readonly userId: string,
   ) {}
 }
 
@@ -21,6 +22,7 @@ export class SubmitEvaluationHandler implements ICommandHandler<
     return this.repo.submitAttempt({
       attemptId: cmd.attemptId,
       answers: cmd.answers,
+      userId: cmd.userId,
     });
   }
 }
