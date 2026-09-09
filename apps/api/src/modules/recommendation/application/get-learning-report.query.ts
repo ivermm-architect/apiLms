@@ -34,6 +34,8 @@ export interface LearningReportResult {
   strengths: string[];
   weaknesses: string[];
   recommendations: string[];
+  /** ISO-8601 en que la IA redactó el informe; null si aún no hay. */
+  generatedAt: string | null;
 }
 
 const EMPTY: LearningReportResult = {
@@ -43,6 +45,7 @@ const EMPTY: LearningReportResult = {
   strengths: [],
   weaknesses: [],
   recommendations: [],
+  generatedAt: null,
 };
 
 /**
@@ -82,7 +85,7 @@ export class GetLearningReportHandler implements IQueryHandler<
     );
 
     // NO se espera al modelo aquí: el caché responde ya y regenera aparte.
-    const { value, pending } = this.cache.getOrRefresh<CachedReport>(
+    const { value, pending, updatedAt } = this.cache.getOrRefresh<CachedReport>(
       `learning-report:${query.userId}`,
       hash,
       async () => {
@@ -98,7 +101,12 @@ export class GetLearningReportHandler implements IQueryHandler<
     );
 
     if (value) {
-      return { generated: true, pending, ...value };
+      return {
+        generated: true,
+        pending,
+        ...value,
+        generatedAt: updatedAt ? new Date(updatedAt).toISOString() : null,
+      };
     }
     // Sin informe todavía: pending=true → la UI muestra "generando…" y refresca.
     return { ...EMPTY, pending };

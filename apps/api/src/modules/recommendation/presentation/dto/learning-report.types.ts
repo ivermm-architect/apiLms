@@ -14,4 +14,6 @@ export class LearningReportType {
   @Field(() => [String]) strengths!: string[];
   @Field(() => [String]) weaknesses!: string[];
   @Field(() => [String]) recommendations!: string[];
+  /** ISO-8601 en que la IA redactó el informe; null si aún no hay. */
+  @Field(() => String, { nullable: true }) generatedAt?: string | null;
 }

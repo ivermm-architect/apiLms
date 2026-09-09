@@ -39,6 +39,8 @@ export interface CacheLookup<T> {
   value: T | null;
   /** true si hay una regeneración en curso y aún no existe un valor fresco. */
   pending: boolean;
+  /** Marca de tiempo (epoch ms) en que se generó `value`; 0 si aún no hay. */
+  updatedAt: number;
 }
 
 @Injectable()
@@ -56,7 +58,7 @@ export class AiCacheService {
 
     // HIT fresco: el valor corresponde a los datos actuales.
     if (entry && entry.hash === hash && entry.payload !== null) {
-      return { value: entry.payload, pending: false };
+      return { value: entry.payload, pending: false, updatedAt: entry.updatedAt };
     }
 
     const now = Date.now();
@@ -77,7 +79,21 @@ export class AiCacheService {
       void this.refresh(key, hash, generate);
     }
 
-    return { value: entry?.payload ?? null, pending: entry?.payload == null };
+    return {
+      value: entry?.payload ?? null,
+      pending: entry?.payload == null,
+      updatedAt: entry?.updatedAt ?? 0,
+    };
+  }
+
+  /**
+   * Elimina la entrada de `key` para forzar una regeneración en vivo en la
+   * próxima consulta. Lo usa el botón "Regenerar con IA": limpia el snapshot
+   * cacheado (aunque los hechos no hayan cambiado) para que la siguiente
+   * lectura dispare `narrate()` de nuevo y la UI muestre el estado "generando…".
+   */
+  invalidate(key: string): void {
+    this.store.delete(key);
   }
 
   private async refresh<T>(

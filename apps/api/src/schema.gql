@@ -589,6 +589,7 @@ scalar JSON @specifiedBy(url: "http://www.ecma-international.org/publications/fi
 
 type LearningReportType {
   generated: Boolean!
+  generatedAt: String
   pending: Boolean!
   recommendations: [String!]!
   strengths: [String!]!
@@ -687,6 +688,7 @@ type Mutation {
   logout(allDevices: Boolean, refreshToken: String): Boolean!
   publishCourse(id: String!): CourseType!
   refresh(input: RefreshInput!): TokenPairType!
+  regenerateLearningReport: LearningReportType!
   reorderLessons(items: [ReorderItemInput!]!, sectionId: String!): Boolean!
   reorderSections(courseId: String!, items: [ReorderItemInput!]!): Boolean!
   revokeRole(roleName: String!, userId: String!): Boolean!
